@@ -1,0 +1,26 @@
+---
+rhelai_model_serve_gpu_mapping:
+  g6.xlarge:
+    gpus: 1
+    tensor_parallel_size: 1
+  g6.2xlarge:
+    gpus: 1
+    tensor_parallel_size: 1
+  g6.4xlarge:
+    gpus: 1
+    tensor_parallel_size: 1
+  g6.8xlarge:
+    gpus: 1
+    tensor_parallel_size: 1
+  g6.16xlarge:
+    gpus: 1
+    tensor_parallel_size: 1
+  g6.12xlarge:
+    gpus: 4
+    tensor_parallel_size: 4
+  g6.24xlarge:
+    gpus: 4
+    tensor_parallel_size: 4
+  g6.48xlarge:
+    gpus: 8
+    tensor_parallel_size: 8

@@ -1,97 +1,101 @@
 ---
-- name: Download pip
-  ansible.builtin.get_url:
-    url: "https://bootstrap.pypa.io/get-pip.py"
-    dest: /root/
-    mode: 666
+- name: Configure RHEL AI environment
+  become: "{{ rhelai_model_serve_become }}"
+  become_user: "{{ rhelai_model_serve_become_user }}"
+  block:
+    - name: Download pip
+      ansible.builtin.get_url:
+        url: "https://bootstrap.pypa.io/get-pip.py"
+        dest: /root/
+        mode: '0644'
 
-- name: Install pip
-  ansible.builtin.command:
-    cmd: "python /root/get-pip.py"
+    - name: Install pip
+      ansible.builtin.command:
+        cmd: "python /root/get-pip.py"
 
-- name: Install ruamel
-  ansible.builtin.pip:
-    name: ruamel.yaml
-    state: present
+    - name: Install ruamel
+      ansible.builtin.pip:
+        name: ruamel.yaml
+        state: present
 
-- name: Authenticate with Red Hat registry
-  containers.podman.podman_login:
-    registry: "{{ rhelai_model_serve_rh_registry_url }}"
-    username: "{{ rhelai_model_serve_rh_registry_user }}"
-    password: "{{ rhelai_model_serve_rh_registry_password }}"
-    no_log: true
+    - name: Authenticate with Red Hat registry
+      containers.podman.podman_login:
+        registry: "{{ rhelai_model_serve_rh_registry_url }}"
+        username: "{{ rhelai_model_serve_rh_registry_user }}"
+        password: "{{ rhelai_model_serve_rh_registry_password }}"
+      no_log: true
 
-- name: Create /etc/ilab directory
-  ansible.builtin.file:
-    path: "{{ rhelai_model_serve_ilab_config_path }}"
-    state: directory
-    owner: root
-    group: root
-    mode: '0755'
+    - name: Create /etc/ilab directory
+      ansible.builtin.file:
+        path: "{{ rhelai_model_serve_ilab_config_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
 
-- name: Create /etc/ilab/insights-opt-out file
-  ansible.builtin.file:
-    path: "{{ rhelai_model_serve_ilab_config_path }}/insights-opt-out"
-    state: touch
-    owner: root
-    group: root
-    mode: '0644'
+    - name: Create /etc/ilab/insights-opt-out file
+      ansible.builtin.file:
+        path: "{{ rhelai_model_serve_ilab_config_path }}/insights-opt-out"
+        state: touch
+        owner: root
+        group: root
+        mode: '0644'
 
-- name: Initialize InstructLab configuration
-  ansible.builtin.shell:
-    cmd: "ilab config init --non-interactive"
+    - name: Initialize InstructLab configuration
+      ansible.builtin.shell:
+        cmd: "ilab config init --non-interactive"
 
-- name: Download specified model
-  ansible.builtin.shell:
-    cmd: "ilab model download --repository docker://{{ rhelai_model_serve_rh_registry_url }}/rhelai1/{{ rhelai_model_serve_model_name }} --release latest"
+    - name: Download specified model
+      ansible.builtin.shell:
+        cmd: "ilab model download --repository docker://{{ rhelai_model_serve_rh_registry_url }}/rhelai1/{{ rhelai_model_serve_model_name }} --release latest"
 
-- name: Load GPU mapping configuration
-  ansible.builtin.include_vars:
-    file: "{{ role_path }}/vars/gpu_mapping.yml"
+    - name: Load GPU mapping configuration
+      ansible.builtin.include_vars:
+        file: "{{ role_path }}/vars/gpu_mapping.yml"
 
-# TODO: Add logic based on model too, currently sets the maximum GPUs available
-- name: Set GPU count based on AWS instance type
-  ansible.builtin.set_fact:
-    gpu_count: "{{ gpu_mapping[rhelai_model_serve_instance_type].gpus | default(1) }}"
-    tensor_parallel_size: "{{ gpu_mapping[rhelai_model_serve_instance_type].tensor_parallel_size | default(1) }}"
-    when: rhelai_model_serve_instance_type is defined
+    # TODO: Add logic based on model too, currently sets the maximum GPUs available
+    - name: Set GPU count based on AWS instance type
+      ansible.builtin.set_fact:
+        rhelai_model_serve_gpu_count: "{{ rhelai_model_serve_gpu_mapping[rhelai_model_serve_instance_type].gpus | default(1) }}"
+        rhelai_model_serve_tensor_parallel_size: "{{ rhelai_model_serve_gpu_mapping[rhelai_model_serve_instance_type].tensor_parallel_size | default(1) }}"
+      when: rhelai_model_serve_instance_type is defined
 
-- name: Modify `host_port` to bind to all interfaces (0.0.0.0)
-  lb2961.ai_driven_aap.yaml_edit:
-    path: "/root/.config/instructlab/config.yaml"
-    changes:
-      serve.host_port: "0.0.0.0:8000"
-      teacher.host_port: "0.0.0.0:8000"
-      serve.vllm.vllm_args["1"]: "{{ gpu_count }}"
-      serve.vllm.vllm_args["2"]: "--api-key"
-      serve.vllm.vllm_args["3"]: "{{ rhelai_model_serve_api_token }}"
+    - name: Modify `host_port` to bind to all interfaces (0.0.0.0)
+      lb2961.ai_driven_aap.yaml_edit:
+        path: "/root/.config/instructlab/config.yaml"
+        changes:
+          serve.host_port: "0.0.0.0:8000"
+          teacher.host_port: "0.0.0.0:8000"
+          serve.vllm.vllm_args["1"]: "{{ rhelai_model_serve_gpu_count }}"
+          serve.vllm.vllm_args["2"]: "--api-key"
+          serve.vllm.vllm_args["3"]: "{{ rhelai_model_serve_api_token }}"
 
-- name: Enable and start model serving
-  ansible.builtin.shell: |
-    nohup /usr/bin/ilab model serve --model-path /root/.cache/instructlab/models/{{ rhelai_model_serve_model_name }}  > /tmp/ilab_model_serve.log 2>&1 &
-    async: 5
-    poll: 0
-    register: model_serve_command
+    - name: Enable and start model serving
+      ansible.builtin.shell: |
+        nohup /usr/bin/ilab model serve --model-path /root/.cache/instructlab/models/{{ rhelai_model_serve_model_name }}  > /tmp/ilab_model_serve.log 2>&1 &
+      async: 10
+      poll: 0
+      register: model_serve_command
 
-- name: Check if something is listening on port 8000 for TCP
-  ansible.builtin.wait_for:
-    host: 0.0.0.0
-    port: 8000
-    state: started
-    timeout: 150
-    register: port_check
-    until: port_check is not failed
+    - name: Check if something is listening on port 8000 for TCP
+      ansible.builtin.wait_for:
+        host: 0.0.0.0
+        port: 8000
+        state: started
+        timeout: 300
+      register: port_check
+      until: port_check is not failed
 
-- name: Confirm that model serve started successfully
-  ansible.builtin.debug:
-    msg: "Model serve started successfully and is listening on port 8000"
-    when: port_check is succeeded
+    - name: Confirm that model serve started successfully
+      ansible.builtin.debug:
+        msg: "Model serve started successfully and is listening on port 8000"
+      when: port_check is succeeded
 
-- name: Handle error if port 8000 is not listening
-  ansible.builtin.fail:
-    msg: "Model serve did not start successfully; nothing is listening on port 8000"
-    when: port_check is failed
+    - name: Handle error if port 8000 is not listening
+      ansible.builtin.fail:
+        msg: "Model serve did not start successfully; nothing is listening on port 8000"
+      when: port_check is failed
 
-- name: Output Model Serving URL
-  ansible.builtin.debug:
-    msg: "Model is served at: http://{{ ansible_host }}:{{ rhelai_model_serve_serve_port }} with token: {{ rhelai_model_serve_api_token }}"
+    - name: Output Model Serving URL
+      ansible.builtin.debug:
+        msg: "Model is served at: http://{{ ansible_host }}:{{ rhelai_model_serve_serve_port }} with token: {{ rhelai_model_serve_api_token }}"
