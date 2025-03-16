@@ -2,4 +2,5 @@
 - hosts: localhost
   remote_user: root
   roles:
-    - test
+    - rhelai_model_serve
+
