@@ -2,6 +2,9 @@
 # Name of the model to be served
 rhelai_model_serve_model_name: 'granite-8b-lab-v1'
 
+# Instance type on AWS
+rhelai_model_serve_instance_type: "g6.2xlarge"
+
 # Path for ilab configuration files
 rhelai_model_serve_ilab_config_path: '/etc/ilab'
 
