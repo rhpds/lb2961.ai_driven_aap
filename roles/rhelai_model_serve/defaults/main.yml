@@ -1,23 +1,22 @@
 ---
 # Name of the model to be served
-rhelai_model_serve_model_name: "{{ rhelai_model_serve_model_name | default('granite-8b-lab-v1') }}"
+rhelai_model_serve_model_name: 'granite-8b-lab-v1'
 
 # Path for ilab configuration files
-rhelai_model_serve_ilab_config_path: "{{ rhelai_model_serve_ilab_config_path | default('/etc/ilab') }}"
+rhelai_model_serve_ilab_config_path: '/etc/ilab'
 
 # Timeout (in seconds) for model download
-rhelai_model_serve_model_download_timeout: "{{ rhelai_model_serve_model_download_timeout | default(600) }}"
+rhelai_model_serve_model_download_timeout: 600
 
 # Port for model serving
-rhelai_model_serve_serve_port: "{{ rhelai_model_serve_serve_port | default(8000) }}"
+rhelai_model_serve_serve_port: 8000
 
 # Additional parameters to pass to model serve (optional)
-rhelai_model_serve_additional_model_params: "{{ rhelai_model_serve_additional_model_params | default('') }}"
-
-# API token for authentication (should be passed securely via extra vars or vault)
-rhelai_model_serve_api_token: "{{ rhelai_model_serve_api_token | default('') }}"
+rhelai_model_serve_additional_model_params: ''
 
 # Privilege escalation settings (included in defaults)
-rhelai_model_serve_become: "{{ rhelai_model_serve_become | default('true') }}"
-rhelai_model_serve_become_user: "{{ rhelai_model_serve_become_user | default('root') }}"
-rhelai_model_serve_rh_registry_url: "{{ rhelai_model_serve_rh_registry_url | default('registry.redhat.io') }}"
+rhelai_model_serve_become: true
+rhelai_model_serve_become_user: 'root'
+
+# Registry URL
+rhelai_model_serve_rh_registry_url: 'registry.redhat.io'
