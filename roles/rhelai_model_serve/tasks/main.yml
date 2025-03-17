@@ -58,7 +58,6 @@
       ansible.builtin.set_fact:
         rhelai_model_serve_gpu_count: "{{ rhelai_model_serve_gpu_mapping[rhelai_model_serve_instance_type].gpus | default(1) }}"
         rhelai_model_serve_tensor_parallel_size: "{{ rhelai_model_serve_gpu_mapping[rhelai_model_serve_instance_type].tensor_parallel_size | default(1) }}"
-      when: rhelai_model_serve_instance_type is defined
 
     - name: Modify `host_port` to bind to all interfaces (0.0.0.0)
       lb2961.ai_driven_aap.yaml_edit:
@@ -66,7 +65,7 @@
         changes:
           serve.host_port: "0.0.0.0:8000"
           teacher.host_port: "0.0.0.0:8000"
-          serve.vllm.vllm_args["1"]: "{{ rhelai_model_serve_gpu_count }}"
+          serve.vllm.vllm_args["1"]: "{{ rhelai_model_serve_gpu_count | default(1) }}"
           serve.vllm.vllm_args["2"]: "--api-key"
           serve.vllm.vllm_args["3"]: "{{ rhelai_model_serve_api_token }}"
 
