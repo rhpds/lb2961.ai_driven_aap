@@ -18,6 +18,6 @@ rhelai_model_serve_additional_model_params: "{{ rhelai_model_serve_additional_mo
 rhelai_model_serve_api_token: "{{ rhelai_model_serve_api_token | default('') }}"
 
 # Privilege escalation settings (included in defaults)
-rhelai_model_serve_become: "{{ rhelai_model_serve_become | default(true) }}"
+rhelai_model_serve_become: "{{ rhelai_model_serve_become | default('true') }}"
 rhelai_model_serve_become_user: "{{ rhelai_model_serve_become_user | default('root') }}"
 rhelai_model_serve_rh_registry_url: "{{ rhelai_model_serve_rh_registry_url | default('registry.redhat.io') }}"
