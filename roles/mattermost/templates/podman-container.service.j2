@@ -1,0 +1,12 @@
+[Unit]
+Description=Podman Container %i
+Requires=podman.service
+After=podman.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/podman start -a {{ container_name }}
+ExecStop=/usr/bin/podman stop -t 10 {{ container_name }}
+
+[Install]
+WantedBy=multi-user.target

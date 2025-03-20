@@ -1,0 +1,240 @@
+---
+- name: Install Podman and dependencies
+  ansible.builtin.dnf:
+    name:
+      - podman
+      - python3-pip
+      - python3-podman
+      - git
+      - unzip
+      - python3-dnf
+    state: present
+    update_cache: trues
+
+- name: Create SELinux directory context for container volumes
+  community.general.sefcontext:
+    target: "{{ item }}(/.*)?"
+    setype: container_file_t
+    state: present
+  with_items:
+    - "{{ mattermost_data_dir }}"
+    - "{{ mattermost_config_dir }}"
+    - "{{ mattermost_logs_dir }}"
+    - "{{ mattermost_plugins_dir }}"
+    - "{{ mattermost_client_plugins_dir }}"
+    - "{{ mattermost_bleve_indexes_dir }}"
+    - "{{ mattermost_postgres_data_dir }}"
+  register: sefcontext_result
+
+- name: Create Mattermost parent directory
+  ansible.builtin.file:
+    path: /opt/mattermost
+    state: directory
+    mode: '0755'
+
+- name: Run restorecon after changing SELinux context
+  ansible.builtin.command: restorecon -Rv /opt/mattermost
+  when: sefcontext_result.changed
+
+- name: Create Mattermost directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: 2000
+    group: 2000
+    mode: '0755'
+  with_items:
+    - "{{ mattermost_data_dir }}"
+    - "{{ mattermost_config_dir }}"
+    - "{{ mattermost_logs_dir }}"
+    - "{{ mattermost_plugins_dir }}"
+    - "{{ mattermost_client_plugins_dir }}"
+    - "{{ mattermost_bleve_indexes_dir }}"
+    - "{{ postgres_data_dir }}"
+
+# - name: Create temporary directory for GitHub clone
+#   ansible.builtin.file:
+#     path: /tmp/mattermost_backup
+#     state: directory
+#     mode: '0755'
+
+# - name: Clone GitHub repository to get backup file
+#   ansible.builtin.git:
+#     repo: "https://{{ mattermost_github_repo }}"
+#     dest: /tmp/mattermost_backup
+#     force: true
+
+- name: Copy backup file to local path
+  ansible.builtin.copy:
+    src: "{{ mattermost_backup_file }}"
+    dest: "{{ mattermost_local_backup_path }}"
+    mode: '0644'
+  register: backup_copied
+
+- name: Create Podman network
+  containers.podman.podman_network:
+    name: "{{ mattermost_container_network }}"
+    state: present
+  register: network_result
+
+- name: Deploy PostgreSQL container
+  containers.podman.podman_container:
+    name: mattermost-postgres
+    image: docker.io/library/postgres:13
+    restart_policy: always
+    network: "{{ mattermost_container_network }}"
+    env:
+      POSTGRES_USER: "{{ mattermost_postgres_user }}"
+      POSTGRES_PASSWORD: "{{ mattermost_postgres_password }}"
+      POSTGRES_DB: "{{ mattermost_postgres_db }}"
+    volume:
+      - "{{ mattermost_postgres_data_dir }}:/var/lib/postgresql/data:Z"
+    state: started
+
+- name: Wait for PostgreSQL to be ready
+  ansible.builtin.pause:
+    seconds: 30
+
+- name: Deploy Mattermost container
+  containers.podman.podman_container:
+    name: mattermost
+    image: docker.io/mattermost/mattermost-team-edition:latest
+    restart_policy: always
+    network: "{{ container_network }}"
+    ports:
+      - "8065:8065"
+    env:
+      MM_USERNAME: "{{ mattermost_postgres_user }}"
+      MM_PASSWORD: "{{ mattermost_postgres_password }}"
+      MM_DBNAME: "{{ mattermost_postgres_db }}"
+      MM_SQLSETTINGS_DATASOURCE: "postgres://{{ mattermost_postgres_user }}:{{ mattermost_postgres_password }}@mattermost-postgres:5432/{{ mattermost_postgres_db }}?sslmode=disable&connect_timeout=10"
+      MM_SERVICESETTINGS_SITEURL: "{{ mattermost_site_url }}"
+    volume:
+      - "{{ mattermost_config_dir }}:/mattermost/config:z"
+      - "{{ mattermost_data_dir }}:/mattermost/data:z"
+      - "{{ mattermost_logs_dir }}:/mattermost/logs:z"
+      - "{{ mattermost_plugins_dir }}:/mattermost/plugins:z"
+      - "{{ mattermost_client_plugins_dir }}:/mattermost/client/plugins:z"
+      - "{{ mattermost_bleve_indexes_dir }}:/mattermost/bleve-indexes:z"
+    state: started
+
+- name: Wait for Mattermost to be ready
+  ansible.builtin.pause:
+    seconds: 60
+
+- name: Copy backup file into Mattermost container
+  containers.podman.podman_container_copy:
+    src: "{{ mattermost_local_backup_path }}"
+    dest: /tmp/backup.zip
+    container: mattermost
+
+- name: Configure Mattermost after deployment
+  block:
+    - name: Create mattermost admin
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local user create --email admin@ansible.com --username admin --password ansible123! --system-admin"
+      register: import_result
+
+    - name: Import mattermost config
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local import process --bypass-upload /tmp/backup.zip"
+
+    - name: Create mattermost admin
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password ansible123! --system-admin"
+      register: import_result
+
+    - name: Add admin to team
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local team add automators ansibleadmin@ansible.com"
+
+    - name: Wait for Mattermost to be ready
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Get Mattermost Channel ID
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local channel list automators"
+
+    - name: Get Mattermost Channel ID
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local channel search town-square"
+      register: channel_output
+
+    - name: Extract Channel ID
+      set_fact:
+      channel_id: "{{ channel_output.stdout_lines | select('search', 'Channel ID') | map('regex_replace', '^.*Channel ID :', '') | first }}"
+
+- name: Setup Incoming Webhook
+  block:
+
+    - name: Create Incoming Webhook
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local webhook create-incoming --channel {{ channel_id }} --user admin --display-name Incoming Webhook --lock-to-channel"
+
+    - name: List webhook
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local webhook list"
+      register: webhook_list
+
+    - name: Show webhook detais
+      debug:
+      msg: "{{ webhook_list }}"
+
+- name: Open ports for Firewalld
+  ansible.posix.firewalld:
+    port: 8065/tcp
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Create systemd service files for Docker containers
+  block:
+    - name: Create systemd service directory
+      ansible.builtin.file:
+        path: /etc/systemd/system
+        state: directory
+        mode: '0755'
+
+    - name: Create systemd service for PostgreSQL container
+      ansible.builtin.template:
+        src: templates/podman-container.service.j2
+        dest: /etc/systemd/system/podman-mattermost-postgres.service
+        mode: '0644'
+      vars:
+        container_name: "mattermost-postgres"
+      register: postgres_service
+
+    - name: Create systemd service for Mattermost container
+      ansible.builtin.template:
+        src: templates/podman-container.service.j2
+        dest: /etc/systemd/system/podman-mattermost.service
+        mode: '0644'
+      vars:
+        container_name: mattermost
+      register: mattermost_service
+
+    - name: Reload systemd if services changed
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: postgres_service.changed or mattermost_service.changed
+
+    - name: Enable systemd services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      with_items:
+        - podman-mattermost-postgres.service
+        - podman-mattermost.service
+  vars:
+    systemd_dir: /etc/systemd/system
+  ignore_errors: true
