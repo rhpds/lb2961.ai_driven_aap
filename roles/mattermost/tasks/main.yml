@@ -190,13 +190,6 @@
       ansible.builtin.debug:
         msg: "{{ webhook_list }}"
 
-- name: Open ports for Firewalld
-  ansible.posix.firewalld:
-    port: 8065/tcp
-    permanent: true
-    state: enabled
-    immediate: true
-
 - name: Create systemd service files for Docker containers
   block:
     - name: Create systemd service directory
