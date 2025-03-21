@@ -104,6 +104,7 @@
     ports:
       - "8065:8065"
     env:
+      MM_SERVICESETTINGS_ENABLELOCALMODE: true
       MM_USERNAME: "{{ mattermost_postgres_user }}"
       MM_PASSWORD: "{{ mattermost_postgres_password }}"
       MM_DBNAME: "{{ mattermost_postgres_db }}"
