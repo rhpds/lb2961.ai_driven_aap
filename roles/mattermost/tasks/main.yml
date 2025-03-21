@@ -108,7 +108,7 @@
       MM_PASSWORD: "{{ mattermost_postgres_password }}"
       MM_DBNAME: "{{ mattermost_postgres_db }}"
       MM_SQLSETTINGS_DATASOURCE: "postgres://{{ mattermost_postgres_user }}:{{ mattermost_postgres_password }}@mattermost-postgres:5432/{{ mattermost_postgres_db }}?sslmode=disable&connect_timeout=10"
-      MM_SERVICESETTINGS_SITEURL: "{{ mattermost_site_url }}"
+      MM_SERVICESETTINGS_SITEURL: "{{ mattermost_mm_site_url }}"
     volume:
       - "{{ mattermost_config_dir }}:/mattermost/config:z"
       - "{{ mattermost_data_dir }}:/mattermost/data:z"
