@@ -9,7 +9,7 @@
       - unzip
       - python3-dnf
     state: present
-    update_cache: trues
+    update_cache: true
 
 - name: Create SELinux directory context for container volumes
   community.general.sefcontext:
@@ -100,7 +100,7 @@
     name: mattermost
     image: docker.io/mattermost/mattermost-team-edition:latest
     restart_policy: always
-    network: "{{ container_network }}"
+    network: "{{ mattermost_container_network }}"
     ports:
       - "8065:8065"
     env:
