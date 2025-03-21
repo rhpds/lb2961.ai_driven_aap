@@ -50,7 +50,7 @@
     - "{{ mattermost_plugins_dir }}"
     - "{{ mattermost_client_plugins_dir }}"
     - "{{ mattermost_bleve_indexes_dir }}"
-    - "{{ postgres_data_dir }}"
+    - "{{ mattermost_postgres_data_dir }}"
 
 # - name: Create temporary directory for GitHub clone
 #   ansible.builtin.file:
