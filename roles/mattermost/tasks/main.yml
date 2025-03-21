@@ -168,8 +168,8 @@
       register: channel_output
 
     - name: Extract Channel ID
-      set_fact:
-      channel_id: "{{ channel_output.stdout_lines | select('search', 'Channel ID') | map('regex_replace', '^.*Channel ID :', '') | first }}"
+      ansible.builtin.set_fact:
+        channel_id: "{{ channel_output.stdout_lines | select('search', 'Channel ID') | map('regex_replace', '^.*Channel ID :', '') | first }}"
 
 - name: Setup Incoming Webhook
   block:
