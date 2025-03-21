@@ -186,8 +186,8 @@
       register: webhook_list
 
     - name: Show webhook detais
-      debug:
-      msg: "{{ webhook_list }}"
+      ansible.builtin.debug:
+        msg: "{{ webhook_list }}"
 
 - name: Open ports for Firewalld
   ansible.posix.firewalld:
