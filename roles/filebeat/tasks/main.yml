@@ -1,0 +1,38 @@
+---
+- name: Import Elastic GPG key
+  ansible.builtin.pm_key:
+    key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+    state: present
+
+- name: Create Elastic repository file
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/elastic.repo
+    content: |
+      [elastic-8.x]
+      name=Elastic repository for 8.x packages
+      baseurl=https://artifacts.elastic.co/packages/8.x/yum
+      gpgcheck=1
+      gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+      enabled=1
+      autorefresh=1
+      type=rpm-md
+    mode: '0644'
+
+- name: Install Filebeat (RHEL)
+  ansible.builtin.dnf:
+    name: filebeat
+    state: present
+
+- name: Configure Filebeat to read Apache logs and send to Kafka
+  ansible.builtin.template:
+    src: filebeat.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable and start Filebeat service
+  ansible.builtin.systemd:
+    name: filebeat
+    enabled: true
+    state: restarted

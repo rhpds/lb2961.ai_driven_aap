@@ -1,0 +1,7 @@
+---
+kafka_container_name: cp-kafka
+kafka_image: "docker.io/apache/kafka"
+kafka_port: 9092
+kafka_controller_port: 9093
+kafka_path: "/opt/kafka/bin/"
+kafka_topic: "httpd-error-logs"

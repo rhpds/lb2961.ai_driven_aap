@@ -1,0 +1,23 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/httpd/error_log
+    fields:
+      type: apache_httpd
+    fields_under_root: true
+    scan_frequency: 10s
+
+processors:
+  - add_host_metadata: ~
+
+output.kafka:
+  hosts: ["{{ filebeat_kafka_brokers }}"]
+  topic: "{{ filebeat_kafka_topic }}"
+  codec.json:
+    pretty: false
+  required_acks: 1
+  compression: gzip
+  max_message_bytes: 1000000
+
+logging.level: debug
