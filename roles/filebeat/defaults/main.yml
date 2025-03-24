@@ -1,0 +1,3 @@
+---
+filebeat_kafka_brokers: "service1:9092"
+filebeat_kafka_topic: "httpd-error-logs"
