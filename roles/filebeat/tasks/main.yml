@@ -1,6 +1,6 @@
 ---
 - name: Import Elastic GPG key
-  ansible.builtin.pm_key:
+  ansible.builtin.rpm_key:
     key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
     state: present
 
