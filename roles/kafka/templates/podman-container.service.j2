@@ -1,0 +1,13 @@
+[Unit]
+Description=Kafka Container
+After=network.target podman.service
+Requires=podman.service
+
+[Service]
+Restart=always
+ExecStart=/usr/bin/podman start -a cp-kafka
+ExecStop=/usr/bin/podman stop -t 10 cp-kafka
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
