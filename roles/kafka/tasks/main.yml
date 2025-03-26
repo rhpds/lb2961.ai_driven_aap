@@ -91,7 +91,7 @@
         state: directory
         mode: '0755'
 
-    - name: Create systemd service for Mattermost container
+    - name: Create systemd service for kafka container
       ansible.builtin.template:
         src: templates/podman-container.service.j2
         dest: /etc/systemd/system/kafka-container.service
