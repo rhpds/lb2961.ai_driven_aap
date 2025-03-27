@@ -192,7 +192,7 @@
 
     - name: Extract token from stdout using regex
       ansible.builtin.set_fact:
-        mattermost_incoming_token: "{{ webhook_list  | regex_search('\\((.*?)\\)', '\\1') | first }}"
+        mattermost_incoming_token: "{{ webhook_list | regex_search('\\((.*?)\\)', '\\1') | first }}"
 
 - name: Create systemd service files for Docker containers
   block:
