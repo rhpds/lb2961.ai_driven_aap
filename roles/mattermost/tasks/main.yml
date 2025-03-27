@@ -186,9 +186,13 @@
         command: "mmctl --local webhook list"
       register: webhook_list
 
-    - name: Show webhook detais
+    - name: Show webhook details
       ansible.builtin.debug:
         msg: "{{ webhook_list }}"
+
+    - name: Extract token from stdout using regex
+      ansible.builtin.set_fact:
+        mattermost_incoming_token: "{{ webhook_list.msg.stdout | regex_search('\\((.*?)\\)', '\\1') | first }}"
 
 - name: Create systemd service files for Docker containers
   block:
