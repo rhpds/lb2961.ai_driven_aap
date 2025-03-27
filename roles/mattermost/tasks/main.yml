@@ -194,6 +194,16 @@
       ansible.builtin.set_fact:
         mattermost_incoming_token: "{{ webhook_list.stdout | regex_search('\\((.*?)\\)', '\\1') | first }}"
 
+    - name: print out user.info
+      agnosticd_user_info:
+        msg: |
+          mattermost_incoming_token: "{{ webhook_list.stdout | regex_search('\\((.*?)\\)', '\\1') | first }}"
+
+    - name: Save user data
+      agnosticd_user_info:
+        data:
+          mattermost_incoming_token: "{{ webhook_list.stdout | regex_search('\\((.*?)\\)', '\\1') | first }}"   
+
 - name: Create systemd service files for Docker containers
   block:
     - name: Create systemd service directory
