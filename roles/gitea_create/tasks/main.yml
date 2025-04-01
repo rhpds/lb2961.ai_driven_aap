@@ -47,7 +47,7 @@
 
 - name: Debug API repository creation response
   ansible.builtin.debug:
-    var: repo_create_api.json
+    var: gitea_create_repo_create_api.json
 
 - name: Delete existing token with name "AnsibleToken" (if it exists)
   ansible.builtin.uri:
