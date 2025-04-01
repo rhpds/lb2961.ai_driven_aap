@@ -1,0 +1,6 @@
+- name: Create lightspeed_playbooks repository on Gitea
+  hosts: localhost
+  gather_facts: false
+  vars:
+  roles:
+    - ./roles/gitea

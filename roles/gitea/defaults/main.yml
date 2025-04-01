@@ -1,6 +1,0 @@
----
-gitea_url: ""  # Replace with your Gitea URL
-gitea_repo_name: "{{ input_repo_name | default('lightspeed_playbooks') }}"
-gitea_repo_description: "{{ input_repo_description | default('Repository for Lightspeed Ansible Playbooks') }}"
-gitea_username: "{{ input_gitea_username | default('lab-user') }}"
-gitea_password: ""

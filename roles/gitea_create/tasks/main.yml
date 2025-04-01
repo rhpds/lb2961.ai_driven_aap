@@ -1,7 +1,7 @@
 ---
 - name: Get authentication cookie
   ansible.builtin.uri:
-    url: "{{ gitea_url }}/user/login"
+    url: "{{ gitea_create_url }}/user/login"
     method: GET
     status_code: 200
     validate_certs: false
@@ -14,12 +14,12 @@
 
 - name: Login to Gitea
   ansible.builtin.uri:
-    url: "{{ gitea_url }}/user/login"
+    url: "{{ gitea_create_url }}/user/login"
     method: POST
     body_format: form-urlencoded
     body:
-      user_name: "{{ gitea_username }}"
-      password: "{{ gitea_password }}"
+      user_name: "{{ gitea_create_username }}"
+      password: "{{ gitea_create_password }}"
       _csrf: "{{ csrf_token }}"
     status_code: [200, 302, 303]
     follow_redirects: all
@@ -29,21 +29,21 @@
 
 - name: Create repository via Gitea API
   ansible.builtin.uri:
-    url: "{{ gitea_url }}/api/v1/user/repos"
+    url: "{{ gitea_create_url }}/api/v1/user/repos"
     method: POST
     body_format: json
     body:
-      name: "{{ gitea_repo_name }}"
-      description: "{{ gitea_repo_description }}"
+      name: "{{ gitea_create_repo_name }}"
+      description: "{{ gitea_create_repo_description }}"
       private: false
       auto_init: false
-    url_username: "{{ gitea_username }}"
-    url_password: "{{ gitea_password }}"
+    url_username: "{{ gitea_create_username }}"
+    url_password: "{{ gitea_create_password }}"
     force_basic_auth: true
     validate_certs: false
     status_code: [201, 409]
     return_content: true
-  register: gitea_repo_create_api
+  register: gitea_create_repo_create_api
 
 - name: Debug API repository creation response
   ansible.builtin.debug:
@@ -51,10 +51,10 @@
 
 - name: Delete existing token with name "AnsibleToken" (if it exists)
   ansible.builtin.uri:
-    url: "{{ gitea_url }}/api/v1/users/{{ gitea_username }}/tokens/AnsibleToken"
+    url: "{{ gitea_create_url }}/api/v1/users/{{ gitea_create_username }}/tokens/AnsibleToken"
     method: DELETE
-    url_username: "{{ gitea_username }}"
-    url_password: "{{ gitea_password }}"
+    url_username: "{{ gitea_create_username }}"
+    url_password: "{{ gitea_create_password }}"
     force_basic_auth: true
     validate_certs: false
     status_code: 204
@@ -62,7 +62,7 @@
 
 - name: Create Gitea Personal Access Token
   ansible.builtin.uri:
-    url: "{{ gitea_url }}/api/v1/users/{{ gitea_username }}/tokens"
+    url: "{{ gitea_create_url }}/api/v1/users/{{ gitea_create_username }}/tokens"
     method: POST
     body_format: json
     body:
@@ -76,15 +76,15 @@
         - "write:issue"
         - "write:repository"
         - "write:user"
-    url_username: "{{ gitea_username }}"
-    url_password: "{{ gitea_password }}"
+    url_username: "{{ gitea_create_username }}"
+    url_password: "{{ gitea_create_password }}"
     force_basic_auth: true
     validate_certs: false
     status_code: 201
     return_content: true
-  register: gitea_token_create_api
+  register: gitea_create_token_create_api
 
 
 - name: Save Gitea Token
   ansible.builtin.set_fact:
-    gitea_token_sha1: "{{ gitea_token_create_api.json.sha1 }}"
+    gitea_create_token_sha1: "{{ gitea_create_token_create_api.json.sha1 }}"
