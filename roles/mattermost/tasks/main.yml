@@ -194,6 +194,11 @@
       ansible.builtin.set_fact:
         mattermost_incoming_token: "{{ webhook_list.stdout | regex_search('\\((.*?)\\)', '\\1') | first }}"
 
+    - name: Debug the token
+      ansible.builtin.debug:
+        msg: "Token: {{ mattermost_incoming_token }}"
+
+
 - name: Create systemd service files for Docker containers
   block:
     - name: Create systemd service directory
