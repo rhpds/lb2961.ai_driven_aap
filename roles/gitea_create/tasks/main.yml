@@ -87,4 +87,4 @@
 
 - name: Save Gitea Token
   ansible.builtin.set_fact:
-    gitea_create_token_sha1: "{{ gitea_create_token_create_api.json.sha1 }}"
+    gitea_token_sha1: "{{ gitea_create_token_create_api.json.sha1 }}"
