@@ -82,11 +82,6 @@
         enabled: true
         state: started
 
-    # Handler to reload systemd
-    - name: Reload systemd
-      ansible.builtin.systemd:
-        daemon_reload: true
-
     # - name: Enable and start model serving
     #   ansible.builtin.shell: |
     #     nohup /usr/bin/ilab model serve --model-path /root/.cache/instructlab/models/{{ rhelai_model_serve_model_name }}  > /tmp/ilab_model_serve.log 2>&1 &
