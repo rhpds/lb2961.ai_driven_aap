@@ -69,12 +69,30 @@
           serve.vllm.vllm_args["2"]: "--api-key"
           serve.vllm.vllm_args["3"]: "{{ rhelai_model_serve_api_token }}"
 
-    - name: Enable and start model serving
-      ansible.builtin.shell: |
-        nohup /usr/bin/ilab model serve --model-path /root/.cache/instructlab/models/{{ rhelai_model_serve_model_name }}  > /tmp/ilab_model_serve.log 2>&1 &
-      async: 10
-      poll: 0
-      register: model_serve_command
+    - name: Create systemd unit file for ilab model serve
+      ansible.builtin.template:
+        src: ilab-model-serve.service.j2
+        dest: /etc/systemd/system/ilab-model-serve.service
+        mode: '0644'
+      notify: Reload systemd
+
+    - name: Enable ilab-model-serve service
+      ansible.builtin.systemd:
+        name: ilab-model-serve
+        enabled: true
+        state: started
+
+    # Handler to reload systemd
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    # - name: Enable and start model serving
+    #   ansible.builtin.shell: |
+    #     nohup /usr/bin/ilab model serve --model-path /root/.cache/instructlab/models/{{ rhelai_model_serve_model_name }}  > /tmp/ilab_model_serve.log 2>&1 &
+    #   async: 10
+    #   poll: 0
+    #   register: model_serve_command
 
     - name: Check if something is listening on port 8000 for TCP
       ansible.builtin.wait_for:

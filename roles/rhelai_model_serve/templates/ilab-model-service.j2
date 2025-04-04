@@ -1,0 +1,14 @@
+[Unit]
+Description=Serve RHEL AI model with InstructLab
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/ilab model serve --model-path /root/.cache/instructlab/models/{{ rhelai_model_serve_model_name }}
+WorkingDirectory=/root
+Restart=always
+RestartSec=5
+StandardOutput=append:/tmp/ilab_model_serve.log
+StandardError=append:/tmp/ilab_model_serve.log
+
+[Install]
+WantedBy=multi-user.target
