@@ -1,0 +1,19 @@
+---
+# Splunk container configuration
+splunk_container_name: splunk
+splunk_image: splunk/splunk:latest
+splunk_privileged: true
+
+# Port configuration
+splunk_host_port: 8000
+splunk_container_port: 8000
+
+# Authentication configuration
+splunk_password: "{{ common_password | default('admin123') }}"
+
+# Data directory configuration
+splunk_data_dir: /opt/splunk-data
+splunk_container_data_dir: /opt/splunk/var
+
+# Splunk startup configuration
+splunk_start_args: "--accept-license"

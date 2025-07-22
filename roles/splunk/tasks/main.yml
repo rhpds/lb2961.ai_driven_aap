@@ -1,0 +1,51 @@
+---
+- name: Create Splunk data directory
+  ansible.builtin.file:
+    path: "{{ splunk_data_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Stop any existing Splunk container
+  containers.podman.podman_container:
+    name: "{{ splunk_container_name }}"
+    state: absent
+  become: true
+  failed_when: false
+
+- name: Run Splunk container
+  containers.podman.podman_container:
+    name: "{{ splunk_container_name }}"
+    image: "{{ splunk_image }}"
+    state: started
+    ports:
+      - "{{ splunk_host_port }}:{{ splunk_container_port }}"
+    privileged: "{{ splunk_privileged }}"
+    env:
+      SPLUNK_START_ARGS: "{{ splunk_start_args }}"
+      SPLUNK_PASSWORD: "{{ splunk_password }}"
+    volume:
+      - "{{ splunk_data_dir }}:{{ splunk_container_data_dir }}"
+    detach: true
+  become: true
+
+- name: Wait for Splunk to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ splunk_host_port }}"
+    method: GET
+    status_code: [200, 302]
+  register: splunk_health_check
+  until: splunk_health_check.status in [200, 302]
+  retries: 30
+  delay: 10
+  ignore_errors: true
+
+- name: Display Splunk access information
+  ansible.builtin.debug:
+    msg:
+      - "Splunk is now running and accessible at:"
+      - "URL: http://{{ ansible_default_ipv4.address }}:{{ splunk_host_port }}"
+      - "Username: admin"
+      - "Password: {{ splunk_password }}"
