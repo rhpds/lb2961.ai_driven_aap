@@ -134,7 +134,7 @@
     - name: Create mattermost admin
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local user create --email admin@ansible.com --username admin --password ansible123! --system-admin"
+        command: "mmctl --local user create --email admin@ansible.com --username admin --password {{ mattermost_admin_password }} --system-admin"
       register: import_result
 
     - name: Import mattermost config
@@ -145,7 +145,7 @@
     - name: Create mattermost admin
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password ansible123! --system-admin"
+        command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
       register: import_result
 
     - name: Add admin to team
