@@ -1,0 +1,17 @@
+---
+- name: Ensure nginx conf.d directory exists
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Add conf.d include to nginx.conf for Gitea
+  ansible.builtin.lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: '^\s*include /etc/nginx/conf\.d/\*\.conf;'
+    line: '    include /etc/nginx/conf.d/*.conf;'
+    insertafter: '^\s*include /etc/nginx/mime\.types;'
+    backup: true
+  notify: restart nginx
