@@ -13,6 +13,6 @@
     marker: "# {mark} ANSIBLE MANAGED BLOCK: conf.d include for Gitea"
     block: |
       include /etc/nginx/conf.d/*.conf;
-    insertafter: '^\s*include /etc/nginx/mime\.types;'
+    insertafter: '^\s*include\s+/etc/nginx/mime\.types;'
     backup: true
   notify: restart nginx
