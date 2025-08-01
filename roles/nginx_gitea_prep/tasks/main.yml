@@ -7,11 +7,12 @@
     group: root
     mode: '0755'
 
-- name: Add conf.d include to nginx.conf for Gitea
-  ansible.builtin.lineinfile:
+- name: Insert conf.d include in http block
+  ansible.builtin.blockinfile:
     path: /etc/nginx/nginx.conf
-    regexp: '^\s*include /etc/nginx/conf\.d/\*\.conf;'
-    line: '    include /etc/nginx/conf.d/*.conf;'
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: conf.d include for Gitea"
+    block: |
+      include /etc/nginx/conf.d/*.conf;
     insertafter: '^\s*include /etc/nginx/mime\.types;'
     backup: true
   notify: restart nginx
