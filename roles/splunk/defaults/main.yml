@@ -8,6 +8,14 @@ splunk_privileged: true
 splunk_host_port: 8000
 splunk_container_port: 8000
 
+# Syslog port configuration
+splunk_syslog_host_port: 514
+splunk_syslog_container_port: 514
+
+# HTTP Event Collector port configuration
+splunk_hec_host_port: 8088
+splunk_hec_container_port: 8088
+
 # Authentication configuration
 splunk_password: "{{ common_password | default('admin123') }}"
 
@@ -16,4 +24,4 @@ splunk_data_dir: /opt/splunk-data
 splunk_container_data_dir: /opt/splunk/var
 
 # Splunk startup configuration
-splunk_start_args: "--accept-license"
+splunk_start_args: "--accept-license --accept-sgt-current-at-splunk-com"
