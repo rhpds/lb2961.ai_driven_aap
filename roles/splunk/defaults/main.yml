@@ -9,7 +9,7 @@ splunk_host_port: 8000
 splunk_container_port: 8000
 
 # Syslog port configuration
-splunk_syslog_host_port: 514
+splunk_syslog_host_port: 1514
 splunk_syslog_container_port: 514
 
 # HTTP Event Collector port configuration
