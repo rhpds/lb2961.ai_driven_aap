@@ -27,6 +27,7 @@
     privileged: "{{ splunk_privileged }}"
     env:
       SPLUNK_START_ARGS: "{{ splunk_start_args }}"
+      SPLUNK_GENERAL_TERMS: "{{ splunk_general_terms }}"
       SPLUNK_PASSWORD: "{{ splunk_password }}"
     volume:
       - "{{ splunk_data_dir }}:{{ splunk_container_data_dir }}"

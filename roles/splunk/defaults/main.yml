@@ -24,4 +24,5 @@ splunk_data_dir: /opt/splunk-data
 splunk_container_data_dir: /opt/splunk/var
 
 # Splunk startup configuration
-splunk_start_args: "--accept-license --accept-sgt-current-at-splunk-com"
+splunk_start_args: "--accept-license"
+splunk_general_terms: "--accept-sgt-current-at-splunk-com"
