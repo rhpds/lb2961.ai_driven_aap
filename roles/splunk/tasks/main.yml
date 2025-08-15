@@ -22,7 +22,10 @@
     state: started
     ports:
       - "{{ splunk_host_port }}:{{ splunk_container_port }}"
+      - "{{ splunk_syslog_host_port }}:{{ splunk_syslog_container_port }}/tcp"
       - "{{ splunk_syslog_host_port }}:{{ splunk_syslog_container_port }}/udp"
+      - "{{ splunk_syslog_alt_host_port }}:{{ splunk_syslog_alt_container_port }}/tcp"
+      - "{{ splunk_syslog_alt_host_port }}:{{ splunk_syslog_alt_container_port }}/udp"
       - "{{ splunk_hec_host_port }}:{{ splunk_hec_container_port }}"
     privileged: "{{ splunk_privileged }}"
     env:
