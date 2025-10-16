@@ -98,7 +98,7 @@
 - name: Deploy Mattermost container
   containers.podman.podman_container:
     name: mattermost
-    image: docker.io/mattermost/mattermost-team-edition:latest
+    image: docker.io/mattermost/mattermost-team-edition:10.12
     restart_policy: always
     network: "{{ mattermost_container_network }}"
     ports:
@@ -122,12 +122,6 @@
 - name: Wait for Mattermost to be ready
   ansible.builtin.pause:
     seconds: 60
-
-- name: Ensure Local Mode is enabled in config.json
-  ansible.builtin.lineinfile:
-    path: "{{ mattermost_config_dir }}/config.json"
-    regexp: '^\s*"EnableLocalMode":\s*false,'
-    line: '        "EnableLocalMode": true,'
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
