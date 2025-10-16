@@ -124,11 +124,10 @@
     seconds: 60
 
 - name: Ensure Local Mode is enabled in config.json
-  community.general.json_modify:
-    dest: "{{ mattermost_config_dir }}/config.json"
-    key: ServiceSettings.EnableLocalMode
-    value: true
-    type: bool
+  ansible.builtin.lineinfile:
+    path: "{{ mattermost_config_dir }}/config.json"
+    regexp: '^\s*"EnableLocalMode":\s*false,'
+    line: '        "EnableLocalMode": true,'
   notify: Restart mattermost container
 
 - name: Force all notified handlers to run at this point
