@@ -128,10 +128,6 @@
     path: "{{ mattermost_config_dir }}/config.json"
     regexp: '^\s*"EnableLocalMode":\s*false,'
     line: '        "EnableLocalMode": true,'
-  notify: Restart mattermost container
-
-- name: Force all notified handlers to run at this point
-  ansible.builtin.meta: flush_handlers
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
