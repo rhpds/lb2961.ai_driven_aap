@@ -1,5 +1,5 @@
 ---
-mattermost_version: latest
+mattermost_version: 10.12
 mattermost_data_dir: /opt/mattermost/data
 mattermost_config_dir: /opt/mattermost/config
 mattermost_logs_dir: /opt/mattermost/logs
