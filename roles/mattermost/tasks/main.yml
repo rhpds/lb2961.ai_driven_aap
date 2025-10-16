@@ -98,7 +98,7 @@
 - name: Deploy Mattermost container
   containers.podman.podman_container:
     name: mattermost
-    image: docker.io/mattermost/mattermost-team-edition:10.12
+    image: "docker.io/mattermost/mattermost-team-edition:{{ mattermost_version }}"
     restart_policy: always
     network: "{{ mattermost_container_network }}"
     ports:
