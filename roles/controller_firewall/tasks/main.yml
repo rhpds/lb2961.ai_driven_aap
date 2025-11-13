@@ -21,7 +21,7 @@
     name: ansible
     state: present
 
-- name: Run ansible playbook
+- name: Install ansible collection
   ansible.builtin.command: >-
     ansible-galaxy collection install ansible.posix
 
@@ -39,5 +39,4 @@
 - name: Delete temp directory
   ansible.builtin.file:
     path: "{{ controller_firewall_temp_dir }}"
-    recurse: true
     state: absent
