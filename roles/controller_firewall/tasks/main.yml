@@ -32,11 +32,11 @@
     {{ controller_firewall_temp_dir }}/firewall-config.yml
   register: _r_play_output
 
-- name: output of playbook
+- name: Output of playbook
   ansible.builtin.debug:
     msg: "{{ _r_play_output }}"
 
-- name: Create temp directory
+- name: Delete temp directory
   ansible.builtin.file:
     path: "{{ controller_firewall_temp_dir }}"
     recurse: true
