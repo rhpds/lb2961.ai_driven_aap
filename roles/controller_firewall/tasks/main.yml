@@ -1,76 +1,37 @@
 ---
-- name: Add controller Host block
-  when: 'cloud_provider == "openshift_cnv"'
-  block:
-    - name: Adding controller as host
-      vars:
-        ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
-      ansible.builtin.add_host:
-        name: "{{ controller_firewall_hostname }}"
-        shortname: "{{ controller_firewall_hostname }}"
-        groups:
-          - controllers
-        ansible_user: "{{ controller_firewall_user }}"
-        ansible_password: "{{ controller_firewall_password }}"
-        ansible_become_password: "{{ controller_firewall_password }}"
-        ansible_ssh_common_args: >
-          -o ControlMaster=auto
-          -o ControlPath=/tmp/{{ guid }}-%r-%h-%p
-          -o ControlPersist=5m
-          -o StrictHostKeyChecking=no
-          -o UserKnownHostsFile=/dev/null
-          -o ProxyCommand="ssh -i {{ ssh_provision_key_path | default(ssh_key) | default(infra_ssh_key) | default(ansible_ssh_private_key_file) | default(default_key_name) }}
-          -o StrictHostKeyChecking=no
-          -W %h:%p cloud-user@{{ openshift_cnv_ssh_address }} -p {{ ssh_port }}"
+- name: Create temp directory
+  ansible.builtin.file:
+    path: "{{ controller_firewall_temp_dir }}"
+    recurse: true
+    state: directory
 
-        # ansible_ssh_host: "{{ controller_firewall_hostname }}"
-        # ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
-        # public_ip_address: "{{ openshift_cnv_ssh_address }}"
-        # private_ip_address: "{{ controller_firewall_hostname }}"
-        # isolated: false
-        # ansible_python_interpreter: "auto"
-        # bastion: "bastion"
-        # bastion_ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
+- name: Copy firewall-config playbook
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ controller_firewall_temp_dir }}/{{ item }}.yml"
+  loop:
+    - firewall-config
+    - hosts
 
-    - name: Wait for controller to be reachable
-      ansible.builtin.wait_for:
-        host: "{{ controller_firewall_hostname }}"
-        port: 22
-        timeout: 300
-        delay: 10
+- name: Make sure ansible is installed
+  become: true
+  ansible.builtin.yum:
+    name: ansible
+    state: present
 
-- name: Configure firewall on controller VM
-  when: 'cloud_provider == "openshift_cnv"'
-  delegate_to: "{{ controller_firewall_hostname }}"
-  block:
-    - name: Ensure firewalld is installed
-      ansible.builtin.package:
-        name: firewalld
-        state: present
-      become: true
+- name: Run ansible playbook
+  ansible.builtin.command: >-
+    ansible-playbook
+    -i {{ controller_firewall_temp_dir }}/hosts
+    {{ controller_firewall_temp_dir }}/firewall-config.yml
+  register: _r_play_output
 
-    - name: Ensure firewalld is running and enabled
-      ansible.builtin.systemd:
-        name: firewalld
-        state: started
-        enabled: true
-      become: true
+- name: output of playbook
+  ansible.builtin.debug:
+    msg: "{{ _r_play_output }}"
 
-    - name: Open port 5000/tcp for EDA webhook listener
-      ansible.posix.firewalld:
-        port: 5000/tcp
-        zone: public
-        permanent: true
-        immediate: true
-        state: enabled
-      become: true
-
-    - name: Verify port 5000 is open
-      ansible.builtin.command: firewall-cmd --list-ports
-      register: firewall_ports
-      changed_when: false
-      become: true
-
-    - name: Display open firewall ports
-      ansible.builtin.debug:
-        msg: "Controller firewall ports: {{ firewall_ports.stdout }}"
+- name: Create temp directory
+  ansible.builtin.file:
+    path: "{{ controller_firewall_temp_dir }}"
+    recurse: true
+    state: absent
