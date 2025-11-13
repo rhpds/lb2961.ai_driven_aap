@@ -4,13 +4,6 @@
   vars:
     cloud_provider: openshift_cnv
   tasks:
-    - name: Wait for controller to be reachable
-      ansible.builtin.wait_for:
-        host: "{{ controller_firewall_hostname }}"
-        port: 22
-        timeout: 300
-        delay: 10
-
     - name: Configure firewall on controller VM
       when: 'cloud_provider == "{{ cloud_provider }}"'
       delegate_to: "{{ controller_firewall_hostname }}"
@@ -46,3 +39,8 @@
         - name: Display open firewall ports
           ansible.builtin.debug:
             msg: "Controller firewall ports: {% raw %}{{ firewall_ports.stdout }}{% endraw %}"
+        
+        - name: Copy port numbers
+          ansible.builtin.copy:
+            content: "{% raw %}{{ firewall_ports.stdout }}{% endraw %}"
+            dest: /tmp/ports.txt

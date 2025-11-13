@@ -5,4 +5,4 @@ controller_firewall_protocol: tcp
 controller_firewall_hostname: <CHANGEME>
 controller_firewall_user: <CHANGEME>
 controller_firewall_password: <CHANGEME>
-controller_firewall_temp_dir: /tmp/firewall-config/
+controller_firewall_temp_dir: /tmp/firewall-config
