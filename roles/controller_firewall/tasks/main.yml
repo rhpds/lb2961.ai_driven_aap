@@ -18,6 +18,7 @@
           -o ControlPath=/tmp/{{ guid }}-%r-%h-%p
           -o ControlPersist=5m
           -o StrictHostKeyChecking=no
+          -o UserKnownHostsFile=/dev/null
           -o ProxyCommand="ssh -i {{ ssh_provision_key_path | default(ssh_key) | default(infra_ssh_key) | default(ansible_ssh_private_key_file) | default(default_key_name) }}
           -o StrictHostKeyChecking=no
           -W %h:%p cloud-user@{{ openshift_cnv_ssh_address }} -p {{ ssh_port }}"
