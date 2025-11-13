@@ -6,6 +6,8 @@
       ansible.builtin.add_host:
         name: "{{ controller_firewall_hostname }}"
         shortname: "{{ controller_firewall_hostname }}"
+        groups:
+          - controllers
         ansible_user: "{{ controller_firewall_user }}"
         ansible_password: "{{ controller_firewall_password }}"
         ansible_become_password: "{{ controller_firewall_password }}"
