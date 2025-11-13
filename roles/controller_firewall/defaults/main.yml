@@ -2,6 +2,6 @@
 # Default variables for controller_firewall role
 controller_firewall_port: 5000
 controller_firewall_protocol: tcp
-controller_firewall_hostname: "controller.lab.sandbox-{{ guid }}-ocp4-cluster.svc.cluster.local"
+controller_firewall_hostname: controller
 controller_firewall_user: rhel
 controller_firewall_password: ansible123!
