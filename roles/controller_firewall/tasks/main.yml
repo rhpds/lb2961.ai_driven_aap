@@ -3,6 +3,8 @@
   when: 'cloud_provider == "openshift_cnv"'
   block:
     - name: Adding controller as host
+      vars:
+        ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
       ansible.builtin.add_host:
         name: "{{ controller_firewall_hostname }}"
         shortname: "{{ controller_firewall_hostname }}"
@@ -11,14 +13,23 @@
         ansible_user: "{{ controller_firewall_user }}"
         ansible_password: "{{ controller_firewall_password }}"
         ansible_become_password: "{{ controller_firewall_password }}"
-        ansible_ssh_host: "{{ controller_firewall_hostname }}"
-        ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
-        public_ip_address: "{{ openshift_cnv_ssh_address }}"
-        private_ip_address: "{{ controller_firewall_hostname }}"
-        isolated: false
-        ansible_python_interpreter: "auto"
-        bastion: "bastion"
-        bastion_ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
+        ansible_ssh_common_args: >
+          -o ControlMaster=auto
+          -o ControlPath=/tmp/{{ guid }}-%r-%h-%p
+          -o ControlPersist=5m
+          -o StrictHostKeyChecking=no
+          -o ProxyCommand="ssh -i {{ bastion_private_key }}
+          -o StrictHostKeyChecking=no
+          -W %h:%p cloud-user@{{ bastion_host }} -p {{ ssh_port }}"
+
+        # ansible_ssh_host: "{{ controller_firewall_hostname }}"
+        # ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
+        # public_ip_address: "{{ openshift_cnv_ssh_address }}"
+        # private_ip_address: "{{ controller_firewall_hostname }}"
+        # isolated: false
+        # ansible_python_interpreter: "auto"
+        # bastion: "bastion"
+        # bastion_ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
 
     - name: Wait for controller to be reachable
       ansible.builtin.wait_for:
