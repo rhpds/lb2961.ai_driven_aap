@@ -18,7 +18,7 @@
           -o ControlPath=/tmp/{{ guid }}-%r-%h-%p
           -o ControlPersist=5m
           -o StrictHostKeyChecking=no
-          -o ProxyCommand="ssh -i {{ bastion_private_key }}
+          -o ProxyCommand="ssh -i {{ ssh_provision_key_path | default(ssh_key) | default(infra_ssh_key) | default(ansible_ssh_private_key_file) | default(default_key_name) }}
           -o StrictHostKeyChecking=no
           -W %h:%p cloud-user@{{ bastion_host }} -p {{ ssh_port }}"
 
