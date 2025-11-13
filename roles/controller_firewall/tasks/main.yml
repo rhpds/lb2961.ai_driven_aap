@@ -5,19 +5,25 @@
     recurse: true
     state: directory
 
+- name: Copy firewall-config hosts
+  ansible.builtin.template:
+    src: "hosts.j2"
+    dest: "{{ controller_firewall_temp_dir }}/hosts"
+
 - name: Copy firewall-config playbook
   ansible.builtin.template:
-    src: "{{ item }}.j2"
-    dest: "{{ controller_firewall_temp_dir }}/{{ item }}.yml"
-  loop:
-    - firewall-config
-    - hosts
+    src: "firewall-config.yml.j2"
+    dest: "{{ controller_firewall_temp_dir }}/firewall-config.yml"
 
 - name: Make sure ansible is installed
   become: true
   ansible.builtin.yum:
     name: ansible
     state: present
+
+- name: Run ansible playbook
+  ansible.builtin.command: >-
+    ansible-galaxy collection install ansible.posix
 
 - name: Run ansible playbook
   ansible.builtin.command: >-
