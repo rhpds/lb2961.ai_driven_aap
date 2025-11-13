@@ -1,0 +1,38 @@
+---
+- name: Configure firewall on controller VM
+  block:
+    - name: Ensure firewalld is installed
+      ansible.builtin.package:
+        name: firewalld
+        state: present
+      become: true
+
+    - name: Ensure firewalld is running and enabled
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+      become: true
+
+    - name: Open port 5000/tcp for EDA webhook listener
+      ansible.posix.firewalld:
+        port: 5000/tcp
+        zone: public
+        permanent: true
+        immediate: true
+        state: enabled
+      become: true
+
+    - name: Verify port 5000 is open
+      ansible.builtin.command: firewall-cmd --list-ports
+      register: firewall_ports
+      changed_when: false
+      become: true
+
+    - name: Display open firewall ports
+      ansible.builtin.debug:
+        msg: "Controller firewall ports: {{ firewall_ports.stdout }}"
+  delegate_to: "{{ controller_firewall_hostname }}"
+  vars:
+    ansible_user: "{{ controller_firewall_user }}"
+    ansible_password: "{{ controller_firewall_password }}"
