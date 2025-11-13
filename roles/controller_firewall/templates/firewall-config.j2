@@ -45,4 +45,4 @@
 
         - name: Display open firewall ports
           ansible.builtin.debug:
-            msg: "Controller firewall ports: {{ firewall_ports.stdout }}"
+            msg: "Controller firewall ports: {% raw %}{{ firewall_ports.stdout }}{% endraw %}"
