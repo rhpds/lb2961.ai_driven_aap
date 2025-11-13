@@ -20,7 +20,7 @@
           -o StrictHostKeyChecking=no
           -o ProxyCommand="ssh -i {{ ssh_provision_key_path | default(ssh_key) | default(infra_ssh_key) | default(ansible_ssh_private_key_file) | default(default_key_name) }}
           -o StrictHostKeyChecking=no
-          -W %h:%p cloud-user@{{ bastion_host }} -p {{ ssh_port }}"
+          -W %h:%p cloud-user@{{ openshift_cnv_ssh_address }} -p {{ ssh_port }}"
 
         # ansible_ssh_host: "{{ controller_firewall_hostname }}"
         # ssh_port: "{{ hostvars[groups['bastions'][0]].bastion_ssh_port }}"
