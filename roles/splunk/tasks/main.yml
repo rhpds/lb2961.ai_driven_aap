@@ -48,6 +48,132 @@
   delay: 10
   ignore_errors: true
 
+- name: Create temporary directory for Splunk app
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: splunk_app
+  register: temp_app_dir
+  become: true
+
+- name: Download Splunk app from S3
+  ansible.builtin.get_url:
+    url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/app-for-cisco-network-data_281.tgz"
+    dest: "{{ temp_app_dir.path }}/app-for-cisco-network-data_281.tgz"
+    mode: '0644'
+  become: true
+
+- name: Copy app tarball into Splunk container
+  containers.podman.podman_container_copy:
+    container: "{{ splunk_container_name }}"
+    src: "{{ temp_app_dir.path }}/app-for-cisco-network-data_281.tgz"
+    dest: /tmp/app-for-cisco-network-data_281.tgz
+  become: true
+
+- name: Extract Splunk app inside container
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: tar -xzf /tmp/app-for-cisco-network-data_281.tgz -C /opt/splunk/etc/apps/
+  become: true
+
+- name: Set ownership of app files to splunk user
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: chown -R splunk:splunk /opt/splunk/etc/apps/
+  become: true
+
+- name: Clean up app tarball from container
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: rm -f /tmp/app-for-cisco-network-data_281.tgz
+  become: true
+  ignore_errors: true
+
+- name: Clean up temporary directory
+  ansible.builtin.file:
+    path: "{{ temp_app_dir.path }}"
+    state: absent
+  become: true
+
+- name: Restart Splunk container to load the app
+  containers.podman.podman_container:
+    name: "{{ splunk_container_name }}"
+    state: started
+    restart: true
+  become: true
+
+- name: Wait for Splunk to be ready after restart
+  ansible.builtin.uri:
+    url: "http://localhost:{{ splunk_host_port }}"
+    method: GET
+    status_code: [200, 302]
+  register: splunk_health_check_restart
+  until: splunk_health_check_restart.status in [200, 302]
+  retries: 30
+  delay: 10
+
+- name: Create temporary directory for Splunk app
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: splunk_app
+  register: temp_app_dir
+  become: true
+
+- name: Download Splunk app from S3
+  ansible.builtin.get_url:
+    url: "{{ splunk_app_url }}"
+    dest: "{{ temp_app_dir.path }}/{{ splunk_app_filename }}"
+    mode: '0644'
+  become: true
+
+- name: Copy app tarball into Splunk container
+  containers.podman.podman_container_copy:
+    container: "{{ splunk_container_name }}"
+    src: "{{ temp_app_dir.path }}/{{ splunk_app_filename }}"
+    dest: "{{ splunk_app_temp_path }}"
+  become: true
+
+- name: Extract Splunk app inside container
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: "tar -xzf {{ splunk_app_temp_path }} -C {{ splunk_container_apps_path }}"
+  become: true
+
+- name: Set ownership of app files to splunk user
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: "chown -R {{ splunk_app_owner }}:{{ splunk_app_group }} {{ splunk_container_apps_path }}"
+  become: true
+
+- name: Clean up app tarball from container
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: "rm -f {{ splunk_app_temp_path }}"
+  become: true
+  ignore_errors: true
+
+- name: Clean up temporary directory
+  ansible.builtin.file:
+    path: "{{ temp_app_dir.path }}"
+    state: absent
+  become: true
+
+- name: Restart Splunk container to load the app
+  containers.podman.podman_container:
+    name: "{{ splunk_container_name }}"
+    state: started
+    restart: true
+  become: true
+
+- name: Wait for Splunk to be ready after restart
+  ansible.builtin.uri:
+    url: "http://localhost:{{ splunk_host_port }}"
+    method: GET
+    status_code: [200, 302]
+  register: splunk_health_check_restart
+  until: splunk_health_check_restart.status in [200, 302]
+  retries: 30
+  delay: 10
+
 - name: Display Splunk access information
   ansible.builtin.debug:
     msg:
