@@ -30,3 +30,11 @@ splunk_container_data_dir: /opt/splunk/var
 # Splunk startup configuration
 splunk_start_args: "--accept-license"
 splunk_general_terms: "--accept-sgt-current-at-splunk-com"
+
+# Splunk app installation
+splunk_app_url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/app-for-cisco-network-data_281.tgz"
+splunk_app_filename: "app-for-cisco-network-data_281.tgz"
+splunk_app_temp_path: "/tmp/{{ splunk_app_filename }}"
+splunk_container_apps_path: "/opt/splunk/etc/apps/"
+splunk_app_owner: "splunk"
+splunk_app_group: "splunk"
