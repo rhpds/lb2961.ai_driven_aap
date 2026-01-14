@@ -38,3 +38,7 @@ splunk_app_temp_path: "/tmp/{{ splunk_app_filename }}"
 splunk_container_apps_path: "/opt/splunk/etc/apps/"
 splunk_app_owner: "splunk"
 splunk_app_group: "splunk"
+
+# Systemd service configuration
+splunk_service_enable: true
+splunk_service_name: "container-{{ splunk_container_name }}"
