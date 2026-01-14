@@ -63,36 +63,36 @@
 
 - name: Download Splunk app from S3
   ansible.builtin.get_url:
-    url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/app-for-cisco-network-data_281.tgz"
-    dest: "{{ temp_app_dir.path }}/app-for-cisco-network-data_281.tgz"
+    url: "{{ splunk_app_url }}"
+    dest: "{{ temp_app_dir.path }}/{{ splunk_app_filename }}"
     mode: '0644'
   become: true
 
 - name: Copy app tarball into Splunk container
   containers.podman.podman_container_copy:
     container: "{{ splunk_container_name }}"
-    src: "{{ temp_app_dir.path }}/app-for-cisco-network-data_281.tgz"
-    dest: /tmp/app-for-cisco-network-data_281.tgz
+    src: "{{ temp_app_dir.path }}/{{ splunk_app_filename }}"
+    dest: "{{ splunk_app_temp_path }}"
   become: true
 
 - name: Extract Splunk app inside container
   containers.podman.podman_container_exec:
     name: "{{ splunk_container_name }}"
-    command: tar -xzf /tmp/app-for-cisco-network-data_281.tgz -C /opt/splunk/etc/apps/
+    command: "tar -xzf {{ splunk_app_temp_path }} -C {{ splunk_container_apps_path }}"
     user: root
   become: true
 
 - name: Set ownership of app files to splunk user
   containers.podman.podman_container_exec:
     name: "{{ splunk_container_name }}"
-    command: chown -R splunk:splunk /opt/splunk/etc/apps/
+    command: "chown -R {{ splunk_app_owner }}:{{ splunk_app_group }} {{ splunk_container_apps_path }}"
     user: root
   become: true
 
 - name: Clean up app tarball from container
   containers.podman.podman_container_exec:
     name: "{{ splunk_container_name }}"
-    command: rm -f /tmp/app-for-cisco-network-data_281.tgz
+    command: "rm -f {{ splunk_app_temp_path }}"
     user: root
   become: true
   ignore_errors: true
@@ -120,19 +120,12 @@
   retries: 30
   delay: 10
 
-- name: Display Splunk access information
-  ansible.builtin.debug:
-    msg:
-      - "Splunk is now running and accessible at:"
-      - "URL: http://{{ ansible_default_ipv4.address }}:{{ splunk_host_port }}"
-      - "Username: admin"
-      - "Password: {{ splunk_password }}"
-
 - name: Generate systemd service file for Splunk container
   containers.podman.podman_generate_systemd:
     name: "{{ splunk_container_name }}"
     dest: /etc/systemd/system/
     restart_policy: always
+    new: false
   become: true
   when: splunk_service_enable | bool
 
@@ -145,11 +138,14 @@
   become: true
   when: splunk_service_enable | bool
 
-- name: Display service information
+- name: Display Splunk access information
   ansible.builtin.debug:
     msg:
-      - "Splunk systemd service has been created and enabled"
-      - "Service name: {{ splunk_service_name }}"
+      - "Splunk is now running and accessible at:"
+      - "URL: http://{{ ansible_default_ipv4.address }}:{{ splunk_host_port }}"
+      - "Username: admin"
+      - "Password: {{ splunk_password }}"
+      - ""
+      - "Systemd service: {{ splunk_service_name }}"
       - "Check status: systemctl status {{ splunk_service_name }}"
       - "View logs: journalctl -u {{ splunk_service_name }} -f"
-  when: splunk_service_enable | bool
