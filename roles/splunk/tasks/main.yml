@@ -121,3 +121,30 @@
       - "URL: http://{{ ansible_default_ipv4.address }}:{{ splunk_host_port }}"
       - "Username: admin"
       - "Password: {{ splunk_password }}"
+
+- name: Generate systemd service file for Splunk container
+  containers.podman.podman_generate_systemd:
+    name: "{{ splunk_container_name }}"
+    dest: /etc/systemd/system/
+    restart_policy: always
+    new: true
+  become: true
+  when: splunk_service_enable | bool
+
+- name: Enable and start Splunk systemd service
+  ansible.builtin.systemd:
+    name: "{{ splunk_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: splunk_service_enable | bool
+
+- name: Display service information
+  ansible.builtin.debug:
+    msg:
+      - "Splunk systemd service has been created and enabled"
+      - "Service name: {{ splunk_service_name }}"
+      - "Check status: systemctl status {{ splunk_service_name }}"
+      - "View logs: journalctl -u {{ splunk_service_name }} -f"
+  when: splunk_service_enable | bool
