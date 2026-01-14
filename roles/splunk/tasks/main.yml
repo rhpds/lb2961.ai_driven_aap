@@ -1,12 +1,17 @@
 ---
-- name: Create Splunk data directory
+- name: Create Splunk data directories
   ansible.builtin.file:
-    path: "{{ splunk_data_dir }}"
+    path: "{{ item }}"
     state: directory
     mode: '0755'
     owner: root
     group: root
   become: true
+  loop:
+    - "{{ splunk_data_dir }}"
+    - "{{ splunk_data_dir }}/var"
+    - "{{ splunk_data_dir }}/etc"
+    - "{{ splunk_data_dir }}/etc/apps"
 
 - name: Stop any existing Splunk container
   containers.podman.podman_container:
@@ -33,7 +38,8 @@
       SPLUNK_GENERAL_TERMS: "{{ splunk_general_terms }}"
       SPLUNK_PASSWORD: "{{ splunk_password }}"
     volume:
-      - "{{ splunk_data_dir }}:{{ splunk_container_data_dir }}"
+      - "{{ splunk_data_dir }}/var:/opt/splunk/var"
+      - "{{ splunk_data_dir }}/etc:/opt/splunk/etc"
     detach: true
   become: true
 
@@ -127,7 +133,6 @@
     name: "{{ splunk_container_name }}"
     dest: /etc/systemd/system/
     restart_policy: always
-    new: true
   become: true
   when: splunk_service_enable | bool
 
