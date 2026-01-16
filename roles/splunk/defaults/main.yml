@@ -31,10 +31,13 @@ splunk_container_data_dir: /opt/splunk/var
 splunk_start_args: "--accept-license"
 splunk_general_terms: "--accept-sgt-current-at-splunk-com"
 
-# Splunk app installation
-splunk_app_url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/app-for-cisco-network-data_281.tgz"
-splunk_app_filename: "app-for-cisco-network-data_281.tgz"
-splunk_app_temp_path: "/tmp/{{ splunk_app_filename }}"
+# Splunk apps to install (list of apps)
+splunk_apps:
+  - url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/app-for-cisco-network-data_281.tgz"
+    filename: "app-for-cisco-network-data_281.tgz"
+  - url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/deprecated-add-on-for-cisco-network-data_279.tgz"
+    filename: "deprecated-add-on-for-cisco-network-data_279.tgz"
+
 splunk_container_apps_path: "/opt/splunk/etc/apps/"
 splunk_app_owner: "splunk"
 splunk_app_group: "splunk"
