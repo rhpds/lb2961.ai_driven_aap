@@ -37,6 +37,8 @@ splunk_apps:
     filename: "app-for-cisco-network-data_281.tgz"
   - url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/deprecated-add-on-for-cisco-network-data_279.tgz"
     filename: "deprecated-add-on-for-cisco-network-data_279.tgz"
+  - url: "https://my-splunk-apps.s3.us-east-1.amazonaws.com/apps/red-hat-event-driven-ansible-add-on-for-splunk_101.tgz"
+    filename: "red-hat-event-driven-ansible-add-on-for-splunk_101.tgz"
 
 splunk_container_apps_path: "/opt/splunk/etc/apps/"
 splunk_app_owner: "splunk"
