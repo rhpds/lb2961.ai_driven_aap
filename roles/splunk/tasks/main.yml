@@ -54,33 +54,36 @@
   delay: 10
   ignore_errors: true
 
-- name: Create temporary directory for Splunk app
+- name: Create temporary directory for Splunk apps
   ansible.builtin.tempfile:
     state: directory
-    suffix: splunk_app
-  register: temp_app_dir
+    suffix: splunk_apps
+  register: temp_apps_dir
   become: true
 
-- name: Download Splunk app from S3
+- name: Download Splunk apps from S3
   ansible.builtin.get_url:
-    url: "{{ splunk_app_url }}"
-    dest: "{{ temp_app_dir.path }}/{{ splunk_app_filename }}"
+    url: "{{ item.url }}"
+    dest: "{{ temp_apps_dir.path }}/{{ item.filename }}"
     mode: '0644'
   become: true
+  loop: "{{ splunk_apps }}"
 
-- name: Copy app tarball into Splunk container
+- name: Copy app tarballs into Splunk container
   containers.podman.podman_container_copy:
     container: "{{ splunk_container_name }}"
-    src: "{{ temp_app_dir.path }}/{{ splunk_app_filename }}"
-    dest: "{{ splunk_app_temp_path }}"
+    src: "{{ temp_apps_dir.path }}/{{ item.filename }}"
+    dest: "/tmp/{{ item.filename }}"
   become: true
+  loop: "{{ splunk_apps }}"
 
-- name: Extract Splunk app inside container
+- name: Extract Splunk apps inside container
   containers.podman.podman_container_exec:
     name: "{{ splunk_container_name }}"
-    command: "tar -xzf {{ splunk_app_temp_path }} -C {{ splunk_container_apps_path }}"
+    command: "tar -xzf /tmp/{{ item.filename }} -C {{ splunk_container_apps_path }}"
     user: root
   become: true
+  loop: "{{ splunk_apps }}"
 
 - name: Set ownership of app files to splunk user
   containers.podman.podman_container_exec:
@@ -89,21 +92,22 @@
     user: root
   become: true
 
-- name: Clean up app tarball from container
+- name: Clean up app tarballs from container
   containers.podman.podman_container_exec:
     name: "{{ splunk_container_name }}"
-    command: "rm -f {{ splunk_app_temp_path }}"
+    command: "rm -f /tmp/{{ item.filename }}"
     user: root
   become: true
   ignore_errors: true
+  loop: "{{ splunk_apps }}"
 
 - name: Clean up temporary directory
   ansible.builtin.file:
-    path: "{{ temp_app_dir.path }}"
+    path: "{{ temp_apps_dir.path }}"
     state: absent
   become: true
 
-- name: Restart Splunk container to load the app
+- name: Restart Splunk container to load the apps
   containers.podman.podman_container:
     name: "{{ splunk_container_name }}"
     state: started
@@ -145,6 +149,9 @@
       - "URL: http://{{ ansible_default_ipv4.address }}:{{ splunk_host_port }}"
       - "Username: admin"
       - "Password: {{ splunk_password }}"
+      - ""
+      - "Installed apps:"
+      - "{{ splunk_apps | map(attribute='filename') | list }}"
       - ""
       - "Systemd service: {{ splunk_service_name }}"
       - "Check status: systemctl status {{ splunk_service_name }}"
