@@ -8,12 +8,6 @@
       when: 'cloud_provider == "{{ cloud_provider }}"'
       delegate_to: "{{ controller_firewall_hostname }}"
       block:
-        - name: Ensure firewalld is installed
-          ansible.builtin.package:
-            name: firewalld
-            state: present
-          become: true
-
         - name: Ensure firewalld is running and enabled
           ansible.builtin.systemd:
             name: firewalld
