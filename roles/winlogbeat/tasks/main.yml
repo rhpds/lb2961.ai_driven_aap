@@ -1,0 +1,40 @@
+---
+- name: Wait for Windows host to be reachable
+  ansible.builtin.wait_for_connection:
+    timeout: 600
+    delay: 30
+
+- name: Create temp directory for Winlogbeat
+  ansible.windows.win_file:
+    path: 'C:\Temp'
+    state: directory
+
+- name: Download Winlogbeat ZIP
+  ansible.windows.win_get_url:
+    url: "https://artifacts.elastic.co/downloads/beats/winlogbeat/winlogbeat-{{ winlogbeat_version }}-windows-x86_64.zip"
+    dest: 'C:\Temp\winlogbeat.zip'
+    force: false
+
+- name: Extract Winlogbeat
+  community.windows.win_unzip:
+    src: 'C:\Temp\winlogbeat.zip'
+    dest: 'C:\Program Files\Winlogbeat'
+    creates: 'C:\Program Files\Winlogbeat\winlogbeat-{{ winlogbeat_version }}-windows-x86_64'
+
+- name: Deploy Winlogbeat configuration
+  ansible.windows.win_template:
+    src: winlogbeat.j2
+    dest: 'C:\Program Files\Winlogbeat\winlogbeat-{{ winlogbeat_version }}-windows-x86_64\winlogbeat.yml'
+
+- name: Install Winlogbeat as a Windows service
+  ansible.windows.win_shell: |
+    if (-not (Get-Service -Name winlogbeat -ErrorAction SilentlyContinue)) {
+      cd 'C:\Program Files\Winlogbeat\winlogbeat-{{ winlogbeat_version }}-windows-x86_64'
+      PowerShell.exe -ExecutionPolicy UnRestricted -File .\install-service-winlogbeat.ps1
+    }
+
+- name: Start Winlogbeat service
+  ansible.windows.win_service:
+    name: winlogbeat
+    start_mode: auto
+    state: started

@@ -1,0 +1,27 @@
+winlogbeat.event_logs:
+  - name: Security
+    event_id: 4720, 4722, 4725, 4726
+    level: information, warning, error
+  - name: Microsoft-Windows-Windows Firewall With Advanced Security/Firewall
+    level: information, warning, error
+  - name: System
+    event_id: 7036, 7040, 7045
+    level: information, warning, error
+
+processors:
+  - add_host_metadata: ~
+  - add_fields:
+      target: ''
+      fields:
+        source_type: windows_event
+
+output.kafka:
+  hosts: ["{{ winlogbeat_kafka_brokers }}"]
+  topic: "{{ winlogbeat_kafka_topic }}"
+  codec.json:
+    pretty: false
+  required_acks: 1
+  compression: gzip
+  max_message_bytes: 1000000
+
+logging.level: info

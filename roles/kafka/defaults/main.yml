@@ -5,3 +5,4 @@ kafka_port: 9092
 kafka_controller_port: 9093
 kafka_path: "/opt/kafka/bin/"
 kafka_topic: "httpd-error-logs"
+kafka_additional_topics: []

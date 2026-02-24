@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  author: Red Hat
+  description: Install and configure Winlogbeat on Windows to forward events to Kafka
+  license: Apache-2.0
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Windows
+      versions:
+        - "2022"
+  galaxy_tags:
+    - windows
+    - winlogbeat
+    - kafka
+    - logging
+dependencies: []

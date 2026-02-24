@@ -1,0 +1,4 @@
+---
+winlogbeat_kafka_brokers: "service1:9092"
+winlogbeat_kafka_topic: "windows-events"
+winlogbeat_version: "8.17.0"

@@ -83,6 +83,18 @@
       - topic_list.stdout "{{ topic_list.stdout_lines }}"
   when: kafka_topic not in topic_list.stdout_lines and kafka_topic not in topic_list.stdout
 
+- name: Create additional Kafka topics
+  ansible.builtin.command:
+    cmd: "podman exec {{ kafka_container_name }} /{{ kafka_path }}/kafka-topics.sh --create --topic {{ item }} --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1"
+  register: additional_topic
+  changed_when: false
+  failed_when: additional_topic.rc != 0 and 'already exists' not in additional_topic.stderr
+  retries: 5
+  delay: 5
+  until: additional_topic.rc == 0 or 'already exists' in additional_topic.stderr
+  loop: "{{ kafka_additional_topics }}"
+  when: kafka_additional_topics | length > 0
+
 - name: Create systemd service files for Docker containers
   block:
     - name: Create systemd service directory
