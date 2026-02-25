@@ -50,8 +50,8 @@
     status_code: [200, 302]
   register: splunk_health_check
   until: splunk_health_check.status in [200, 302]
-  retries: 30
-  delay: 10
+  retries: 20
+  delay: 5
   ignore_errors: true
 
 - name: Create temporary directory for Splunk apps
@@ -121,8 +121,8 @@
     status_code: [200, 302]
   register: splunk_health_check_restart
   until: splunk_health_check_restart.status in [200, 302]
-  retries: 30
-  delay: 10
+  retries: 20
+  delay: 5
 
 - name: Generate systemd service file for Splunk container
   containers.podman.podman_generate_systemd:

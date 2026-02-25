@@ -47,7 +47,7 @@
   register: topic_list
   changed_when: false
   retries: 5
-  delay: 5
+  delay: 3
   until: topic_list.rc == 0
 
 - name: Debug Kafka Topics
@@ -62,7 +62,7 @@
   register: push_topic
   changed_when: false
   retries: 5
-  delay: 5
+  delay: 3
   until: push_topic.rc == 0
   when: kafka_topic not in topic_list.stdout_lines and kafka_topic not in topic_list.stdout
 
@@ -72,7 +72,7 @@
   register: topic_list_2
   changed_when: false
   retries: 5
-  delay: 5
+  delay: 3
   until: topic_list_2.rc == 0
   when: kafka_topic not in topic_list.stdout_lines and kafka_topic not in topic_list.stdout
 
@@ -90,7 +90,7 @@
   changed_when: false
   failed_when: additional_topic.rc != 0 and 'already exists' not in additional_topic.stderr
   retries: 5
-  delay: 5
+  delay: 3
   until: additional_topic.rc == 0 or 'already exists' in additional_topic.stderr
   loop: "{{ kafka_additional_topics }}"
   when: kafka_additional_topics | length > 0
