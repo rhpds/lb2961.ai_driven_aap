@@ -92,11 +92,8 @@
     state: started
 
 - name: Wait for PostgreSQL to be ready
-  ansible.builtin.wait_for:
-    port: 5432
-    host: 127.0.0.1
-    timeout: 60
-    delay: 5
+  ansible.builtin.pause:
+    seconds: 30
 
 - name: Deploy Mattermost container
   containers.podman.podman_container:
@@ -123,15 +120,8 @@
     state: started
 
 - name: Wait for Mattermost to be ready
-  ansible.builtin.uri:
-    url: "http://localhost:8065"
-    method: GET
-    status_code: [200, 302]
-  register: mattermost_health
-  until: mattermost_health.status in [200, 302]
-  retries: 12
-  delay: 5
-  ignore_errors: false
+  ansible.builtin.pause:
+    seconds: 60
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
@@ -163,15 +153,9 @@
         name: mattermost
         command: "mmctl --local team add automators ansibleadmin@ansible.com"
 
-    - name: Wait for Mattermost to be ready after config
-      ansible.builtin.uri:
-        url: "http://localhost:8065"
-        method: GET
-        status_code: [200, 302]
-      register: mattermost_config_health
-      until: mattermost_config_health.status in [200, 302]
-      retries: 6
-      delay: 5
+    - name: Wait for Mattermost to be ready
+      ansible.builtin.pause:
+        seconds: 30
 
     - name: Get Mattermost Channel ID
       containers.podman.podman_container_exec:
