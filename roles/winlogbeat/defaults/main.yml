@@ -2,3 +2,12 @@
 winlogbeat_kafka_brokers: "service1:9092"
 winlogbeat_kafka_topic: "windows-events"
 winlogbeat_version: "8.17.0"
+
+# Connection settings for provisioner workload stage
+# CNV deployer has no Windows connection step (unlike EC2/Azure),
+# so the role must set PSRP connection vars directly
+ansible_connection: psrp
+ansible_psrp_auth: negotiate
+ansible_psrp_cert_validation: ignore
+ansible_user: "{{ windows_admin_user }}"
+ansible_password: "{{ windows_admin_password }}"
