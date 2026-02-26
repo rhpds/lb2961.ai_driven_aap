@@ -1,0 +1,3 @@
+---
+eda_project_sync_wait_retries: 30
+eda_project_sync_wait_delay: 10
