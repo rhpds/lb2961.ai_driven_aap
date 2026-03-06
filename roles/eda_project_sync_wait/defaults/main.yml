@@ -1,3 +1,6 @@
 ---
+# Initial wait before falling back to delete+recreate
+eda_project_sync_wait_initial_retries: 6
+# Final wait after recreate
 eda_project_sync_wait_retries: 30
 eda_project_sync_wait_delay: 10

@@ -1,4 +1,40 @@
 ---
+- name: Get EDA project status
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/eda/v1/projects/?name={{ item.name | urlencode }}"
+    method: GET
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: 200
+    return_content: true
+  register: eda_project_status
+  loop: "{{ eda_projects | unique(attribute='name') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Trigger sync for projects not yet completed
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/eda/v1/projects/{{ item.json.results[0].id }}/sync/"
+    method: POST
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    body_format: json
+    body:
+      name: "{{ item.json.results[0].name }}"
+    status_code: [200, 202, 204]
+  register: eda_sync_trigger
+  failed_when: false
+  when:
+    - item.json.results | length > 0
+    - item.json.results[0].import_state != 'completed'
+  loop: "{{ eda_project_status.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
 - name: Wait for EDA project sync to complete
   ansible.builtin.uri:
     url: "{{ aap_hostname }}/api/eda/v1/projects/?name={{ item.name | urlencode }}"
@@ -13,8 +49,80 @@
   until: >
     eda_project_sync_status.json.results | length > 0 and
     eda_project_sync_status.json.results[0].import_state == 'completed'
+  retries: "{{ eda_project_sync_wait_initial_retries }}"
+  delay: "{{ eda_project_sync_wait_delay }}"
+  failed_when: false
+  loop: "{{ eda_projects | unique(attribute='name') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Identify projects still stuck after sync attempt
+  ansible.builtin.set_fact:
+    eda_stuck_projects: >-
+      {{ eda_project_sync_status.results
+         | selectattr('json.results.0.import_state', 'ne', 'completed')
+         | map(attribute='json.results.0')
+         | list }}
+
+- name: Delete stuck EDA projects
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/eda/v1/projects/{{ item.id }}/"
+    method: DELETE
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: [200, 204]
+  when: eda_stuck_projects | length > 0
+  loop: "{{ eda_stuck_projects }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Pause before recreating projects
+  ansible.builtin.pause:
+    seconds: 5
+  when: eda_stuck_projects | length > 0
+
+- name: Recreate stuck EDA projects
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/eda/v1/projects/"
+    method: POST
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      description: "{{ item.description | default('') }}"
+      url: "{{ item.url }}"
+      scm_type: git
+      organization_id: "{{ item.organization_id }}"
+      verify_ssl: "{{ item.tls_validation | default(true) }}"
+    status_code: [200, 201]
+    return_content: true
+  when: eda_stuck_projects | length > 0
+  loop: "{{ eda_stuck_projects }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Wait for recreated EDA projects to sync
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/eda/v1/projects/?name={{ item.name | urlencode }}"
+    method: GET
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: 200
+    return_content: true
+  register: eda_project_final_status
+  until: >
+    eda_project_final_status.json.results | length > 0 and
+    eda_project_final_status.json.results[0].import_state == 'completed'
   retries: "{{ eda_project_sync_wait_retries }}"
   delay: "{{ eda_project_sync_wait_delay }}"
-  loop: "{{ eda_projects | unique(attribute='name') | list }}"
+  when: eda_stuck_projects | length > 0
+  loop: "{{ eda_stuck_projects }}"
   loop_control:
     label: "{{ item.name }}"
