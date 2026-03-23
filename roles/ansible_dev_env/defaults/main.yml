@@ -1,0 +1,25 @@
+---
+# ansible_dev_env role defaults
+# Python virtual environment
+ansible_dev_env_python_package: python3.12
+ansible_dev_env_python_bin: /usr/bin/python3.12
+ansible_dev_env_venv_path: "/home/{{ student_name }}/.venv"
+ansible_dev_env_pip_packages:
+  - ansible-dev-tools
+
+# Execution environment for ansible-navigator
+ansible_dev_env_ee_image: "quay.io/agnosticd/ee-ubi9-aap2.5:2.1.0"
+ansible_dev_env_ee_pull_policy: missing
+
+# Navigator config placement
+ansible_dev_env_navigator_config_dest: "/home/{{ student_name }}/ansible-navigator.yml"
+
+# Git configuration
+ansible_dev_env_gitea_hostname: "gitea-{{ subdomain_base }}"
+ansible_dev_env_git_repo_name: lightspeed_playbooks
+
+# ansible.cfg and inventory placement (inside the cloned repo)
+ansible_dev_env_repo_path: "/home/{{ student_name }}/lightspeed_playbooks"
+ansible_dev_env_ansible_cfg_dest: "/home/{{ student_name }}/lightspeed_playbooks/ansible.cfg"
+ansible_dev_env_inventory_dest: "/home/{{ student_name }}/lightspeed_playbooks/inventory"
+ansible_dev_env_remote_user: cloud-user

@@ -1,0 +1,16 @@
+---
+# Role: ansible_dev_env
+# Sets up a production-quality Ansible development environment:
+# - Python 3.12 venv with ansible-dev-tools
+# - Git credentials and repo clone
+# - ansible-navigator configured with EE
+# - ansible.cfg and inventory in the project repo
+
+- name: Set up Python venv and ansible-dev-tools
+  ansible.builtin.include_tasks: python_venv.yml
+
+- name: Configure git credentials and clone repo
+  ansible.builtin.include_tasks: git_config.yml
+
+- name: Configure ansible-navigator, ansible.cfg, and inventory
+  ansible.builtin.include_tasks: navigator.yml

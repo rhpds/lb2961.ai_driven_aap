@@ -1,0 +1,30 @@
+---
+- name: Configure git settings
+  become_user: "{{ student_name }}"
+  community.general.git_config:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    scope: global
+  loop:
+    - { name: "credential.helper", value: "store" }
+    - { name: "user.name", value: "{{ student_name }}" }
+    - { name: "user.email", value: "{{ student_name }}@lab.example.com" }
+    - { name: "http.sslVerify", value: "false" }
+
+- name: Place git credentials file
+  ansible.builtin.copy:
+    content: "https://{{ student_name }}:{{ common_password }}@{{ ansible_dev_env_gitea_hostname }}\n"
+    dest: "/home/{{ student_name }}/.git-credentials"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0600"
+
+- name: Clone lightspeed_playbooks repo
+  become_user: "{{ student_name }}"
+  ansible.builtin.git:
+    repo: "https://{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git"
+    dest: "{{ ansible_dev_env_repo_path }}"
+    version: main
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  ignore_errors: true

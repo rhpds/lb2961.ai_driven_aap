@@ -1,0 +1,29 @@
+---
+- name: Install Python 3.12 RPMs
+  ansible.builtin.dnf:
+    name:
+      - python3.12
+      - python3.12-pip
+      - python3.12-devel
+    state: present
+
+- name: Create Python 3.12 virtual environment
+  become_user: "{{ student_name }}"
+  ansible.builtin.command:
+    cmd: "{{ ansible_dev_env_python_bin }} -m venv {{ ansible_dev_env_venv_path }}"
+    creates: "{{ ansible_dev_env_venv_path }}/bin/python3"
+
+- name: Install ansible-dev-tools in venv
+  become_user: "{{ student_name }}"
+  ansible.builtin.pip:
+    name: "{{ ansible_dev_env_pip_packages }}"
+    virtualenv: "{{ ansible_dev_env_venv_path }}"
+
+- name: Add venv activation to .bashrc
+  ansible.builtin.blockinfile:
+    path: "/home/{{ student_name }}/.bashrc"
+    marker: "# {mark} ANSIBLE DEV ENV"
+    block: |
+      source {{ ansible_dev_env_venv_path }}/bin/activate
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"

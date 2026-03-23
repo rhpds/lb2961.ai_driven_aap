@@ -1,0 +1,24 @@
+---
+- name: Place ansible-navigator.yml config
+  ansible.builtin.template:
+    src: ansible-navigator.yml.j2
+    dest: "{{ ansible_dev_env_navigator_config_dest }}"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0644"
+
+- name: Place ansible.cfg in repo
+  ansible.builtin.template:
+    src: ansible.cfg.j2
+    dest: "{{ ansible_dev_env_ansible_cfg_dest }}"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0644"
+
+- name: Place inventory file in repo
+  ansible.builtin.template:
+    src: inventory.ini.j2
+    dest: "{{ ansible_dev_env_inventory_dest }}"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0644"
