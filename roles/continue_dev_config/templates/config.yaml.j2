@@ -7,99 +7,35 @@ models:
     model: gemini-2.5-pro
     apiKey: ""
 {% if continue_dev_mcp_enabled | bool %}
+{% set _toolsets = ['job_management', 'inventory_management', 'system_monitoring', 'user_management', 'security_compliance', 'platform_configuration'] %}
+{% set _names = ['aap-job-mgmt', 'aap-inventory', 'aap-monitoring', 'aap-user-mgmt', 'aap-security', 'aap-config'] %}
 {% if continue_dev_mcp_mode == "standalone" %}
 mcpServers:
-  - name: aap-job-mgmt
-    type: streamable-http
-    url: "http://localhost:{{ continue_dev_mcp_port }}/mcp/job_management"
-    headers:
-      Authorization: "Bearer {{ continue_dev_mcp_token }}"
-  - name: aap-inventory
-    type: streamable-http
-    url: "http://localhost:{{ continue_dev_mcp_port }}/mcp/inventory_management"
-    headers:
-      Authorization: "Bearer {{ continue_dev_mcp_token }}"
-  - name: aap-monitoring
-    type: streamable-http
-    url: "http://localhost:{{ continue_dev_mcp_port }}/mcp/system_monitoring"
-    headers:
-      Authorization: "Bearer {{ continue_dev_mcp_token }}"
-  - name: aap-user-mgmt
-    type: streamable-http
-    url: "http://localhost:{{ continue_dev_mcp_port }}/mcp/user_management"
-    headers:
-      Authorization: "Bearer {{ continue_dev_mcp_token }}"
-  - name: aap-security
-    type: streamable-http
-    url: "http://localhost:{{ continue_dev_mcp_port }}/mcp/security_compliance"
-    headers:
-      Authorization: "Bearer {{ continue_dev_mcp_token }}"
-  - name: aap-config
-    type: streamable-http
-    url: "http://localhost:{{ continue_dev_mcp_port }}/mcp/platform_configuration"
-    headers:
-      Authorization: "Bearer {{ continue_dev_mcp_token }}"
+{% for i in range(_toolsets | length) %}
+  - name: {{ _names[i] }}
+    command: /home/{{ student_name }}/.nvm/nvm-exec
+    args:
+      - npx
+      - -y
+      - mcp-remote
+      - "http://localhost:{{ continue_dev_mcp_port }}/mcp/{{ _toolsets[i] }}"
+      - --header
+      - "Authorization: Bearer {{ continue_dev_mcp_token }}"
+{% endfor %}
 {% elif continue_dev_mcp_mode == "remote" %}
 mcpServers:
-  - name: aap-job-mgmt
-    command: npx
+{% for i in range(_toolsets | length) %}
+  - name: {{ _names[i] }}
+    command: /home/{{ student_name }}/.nvm/nvm-exec
     args:
+      - npx
       - -y
       - mcp-remote
-      - "https://{{ continue_dev_mcp_gateway_host }}:8448/job_management/mcp"
+      - "https://{{ continue_dev_mcp_gateway_host }}:8448/{{ _toolsets[i] }}/mcp"
       - --header
       - "Authorization: Bearer {{ continue_dev_mcp_token }}"
     env:
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
-  - name: aap-inventory
-    command: npx
-    args:
-      - -y
-      - mcp-remote
-      - "https://{{ continue_dev_mcp_gateway_host }}:8448/inventory_management/mcp"
-      - --header
-      - "Authorization: Bearer {{ continue_dev_mcp_token }}"
-    env:
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
-  - name: aap-monitoring
-    command: npx
-    args:
-      - -y
-      - mcp-remote
-      - "https://{{ continue_dev_mcp_gateway_host }}:8448/system_monitoring/mcp"
-      - --header
-      - "Authorization: Bearer {{ continue_dev_mcp_token }}"
-    env:
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
-  - name: aap-user-mgmt
-    command: npx
-    args:
-      - -y
-      - mcp-remote
-      - "https://{{ continue_dev_mcp_gateway_host }}:8448/user_management/mcp"
-      - --header
-      - "Authorization: Bearer {{ continue_dev_mcp_token }}"
-    env:
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
-  - name: aap-security
-    command: npx
-    args:
-      - -y
-      - mcp-remote
-      - "https://{{ continue_dev_mcp_gateway_host }}:8448/security_compliance/mcp"
-      - --header
-      - "Authorization: Bearer {{ continue_dev_mcp_token }}"
-    env:
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
-  - name: aap-config
-    command: npx
-    args:
-      - -y
-      - mcp-remote
-      - "https://{{ continue_dev_mcp_gateway_host }}:8448/platform_configuration/mcp"
-      - --header
-      - "Authorization: Bearer {{ continue_dev_mcp_token }}"
-    env:
-      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+{% endfor %}
 {% endif %}
 {% endif %}

@@ -1,9 +1,8 @@
 ---
 # Role: continue_dev_config
 # Pre-places Continue.dev configuration files with optional MCP server config.
-# MCP mode is controlled by continue_dev_mcp_mode:
-#   - "standalone": points to a local MCP server container (http://localhost)
-#   - "remote": uses npx mcp-remote to bridge remote AAP MCP gateway (https)
+# Both standalone and remote modes use npx mcp-remote to bridge
+# streamable-http to stdio (required for code-server compatibility).
 
 - name: Create Continue.dev config directory
   ansible.builtin.file:
@@ -12,6 +11,51 @@
     owner: "{{ student_name }}"
     group: "{{ student_name }}"
     mode: "0755"
+
+- name: Create AAP gateway token for MCP authentication
+  when:
+    - continue_dev_mcp_enabled | bool
+    - continue_dev_mcp_token | default('') | length == 0
+  environment:
+    GATEWAY_HOSTNAME: "{{ ansible_automation_platform_configuration_host }}"
+    GATEWAY_USERNAME: "{{ ansible_automation_platform_configuration_username }}"
+    GATEWAY_PASSWORD: "{{ ansible_automation_platform_configuration_password }}"
+    GATEWAY_VERIFY_SSL: "{{ ansible_automation_platform_configuration_verify_ssl }}"
+  ansible.platform.token:
+    description: MCP server authentication token
+    scope: write
+    state: present
+  register: _gateway_token_result
+  until: _gateway_token_result is not failed
+  retries: 30
+  delay: 10
+
+- name: Set MCP token from gateway response
+  when:
+    - _gateway_token_result is defined
+    - _gateway_token_result is not skipped
+  ansible.builtin.set_fact:
+    continue_dev_mcp_token: "{{ _gateway_token_result.ansible_facts.aap_token.token }}"
+
+- name: Install nvm for npx mcp-remote
+  when:
+    - continue_dev_mcp_enabled | bool
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v{{ continue_dev_nvm_version }}/install.sh | bash
+    creates: "/home/{{ student_name }}/.nvm/nvm.sh"
+
+- name: Install Node.js via nvm
+  when:
+    - continue_dev_mcp_enabled | bool
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      source /home/{{ student_name }}/.nvm/nvm.sh &&
+      nvm install {{ continue_dev_node_version }}
+    executable: /bin/bash
+    creates: "/home/{{ student_name }}/.nvm/versions/node"
 
 - name: Place Continue.dev config.yaml
   ansible.builtin.template:
@@ -28,25 +72,3 @@
     owner: "{{ student_name }}"
     group: "{{ student_name }}"
     mode: "0644"
-
-- name: Install nvm for MCP proxy support
-  when:
-    - continue_dev_mcp_enabled | bool
-    - continue_dev_mcp_mode == "remote"
-  become_user: "{{ student_name }}"
-  ansible.builtin.shell:
-    cmd: >-
-      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v{{ continue_dev_nvm_version }}/install.sh | bash
-    creates: "/home/{{ student_name }}/.nvm/nvm.sh"
-
-- name: Install Node.js via nvm
-  when:
-    - continue_dev_mcp_enabled | bool
-    - continue_dev_mcp_mode == "remote"
-  become_user: "{{ student_name }}"
-  ansible.builtin.shell:
-    cmd: >-
-      source /home/{{ student_name }}/.nvm/nvm.sh &&
-      nvm install {{ continue_dev_node_version }}
-    executable: /bin/bash
-    creates: "/home/{{ student_name }}/.nvm/versions/node"

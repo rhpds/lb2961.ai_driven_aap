@@ -6,13 +6,16 @@ continue_dev_mcp_enabled: false
 # MCP mode: "standalone" (local container) or "remote" (npx mcp-remote to AAP gateway)
 continue_dev_mcp_mode: standalone
 
-# Standalone mode: local MCP server container URL (no auth header needed, token set on container)
+# Standalone mode: local MCP server container on bastion
+# Uses npx mcp-remote to bridge streamable-http to stdio
 continue_dev_mcp_port: 8448
-continue_dev_mcp_token: ""
 
-# Remote mode: AAP MCP gateway host and bearer token (for npx mcp-remote)
+# Remote mode: AAP MCP gateway host (for npx mcp-remote over https)
 continue_dev_mcp_gateway_host: ""
 
-# nvm and Node.js versions (for remote mode / npx mcp-remote)
+# AAP gateway token (must be created before calling this role)
+continue_dev_mcp_token: ""
+
+# nvm and Node.js versions (for npx mcp-remote)
 continue_dev_nvm_version: "0.40.1"
 continue_dev_node_version: "20"

@@ -7,7 +7,6 @@ mcp_server_port: 8448
 
 # AAP connection (controller internal DNS)
 mcp_server_aap_url: ""
-mcp_server_aap_token: ""
 mcp_server_ignore_cert_errors: "true"
 mcp_server_allow_write_operations: "true"
 
