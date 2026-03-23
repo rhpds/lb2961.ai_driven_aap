@@ -1,0 +1,18 @@
+---
+# MCP server configuration for AAP integration
+# Set continue_dev_mcp_enabled to true to configure MCP servers in Continue.dev
+continue_dev_mcp_enabled: false
+
+# MCP mode: "standalone" (local container) or "remote" (npx mcp-remote to AAP gateway)
+continue_dev_mcp_mode: standalone
+
+# Standalone mode: local MCP server container URL (no auth header needed, token set on container)
+continue_dev_mcp_port: 3000
+continue_dev_mcp_token: ""
+
+# Remote mode: AAP MCP gateway host and bearer token (for npx mcp-remote)
+continue_dev_mcp_gateway_host: ""
+
+# nvm and Node.js versions (for remote mode / npx mcp-remote)
+continue_dev_nvm_version: "0.40.1"
+continue_dev_node_version: "20"
