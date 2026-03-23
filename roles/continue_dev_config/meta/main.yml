@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  role_name: continue_dev_config
+  description: Pre-place Continue.dev configuration files for code-server
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+dependencies: []

@@ -1,0 +1,33 @@
+---
+# Role: continue_dev_config
+# Pre-places Continue.dev configuration files to suppress first-run wizard
+# and prevent config.json ENOENT errors.
+# NOTE: No model/API key configuration -- extension install only per Phase 3 decisions.
+
+- name: Create Continue.dev config directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/.continue"
+    state: directory
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0755"
+
+- name: Place Continue.dev config.yaml (no models configured)
+  ansible.builtin.copy:
+    content: |
+      name: AIOps Workshop
+      version: 0.0.1
+      schema: v1
+      models: []
+    dest: "/home/{{ student_name }}/.continue/config.yaml"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0644"
+
+- name: Place empty Continue.dev config.json fallback
+  ansible.builtin.copy:
+    content: "{}"
+    dest: "/home/{{ student_name }}/.continue/config.json"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0644"
