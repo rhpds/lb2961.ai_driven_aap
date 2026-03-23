@@ -1,0 +1,9 @@
+[rhel_nodes]
+{% for host in groups['rhel9_nodes'] | default([]) %}
+{{ host.split('.')[0] }} ansible_host={{ host }}
+{% endfor %}
+
+[servers]
+{% for host in groups['servers'] | default([]) %}
+{{ host.split('.')[0] }} ansible_host={{ host }}
+{% endfor %}
