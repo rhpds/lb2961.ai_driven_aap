@@ -7,7 +7,7 @@ continue_dev_mcp_enabled: false
 continue_dev_mcp_mode: standalone
 
 # Standalone mode: local MCP server container URL (no auth header needed, token set on container)
-continue_dev_mcp_port: 3000
+continue_dev_mcp_port: 8448
 continue_dev_mcp_token: ""
 
 # Remote mode: AAP MCP gateway host and bearer token (for npx mcp-remote)

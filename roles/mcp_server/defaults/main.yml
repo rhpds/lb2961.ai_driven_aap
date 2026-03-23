@@ -3,7 +3,7 @@
 mcp_server_enabled: false
 mcp_server_image: registry.redhat.io/ansible-automation-platform-tech-preview/mcp-server-rhel9:latest
 mcp_server_container_name: aap-mcp-server
-mcp_server_port: 3000
+mcp_server_port: 8448
 
 # AAP connection (controller internal DNS)
 mcp_server_aap_url: ""
