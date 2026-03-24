@@ -21,6 +21,8 @@ mcpServers:
       - "http://localhost:{{ continue_dev_mcp_port }}/mcp/{{ _toolsets[i] }}"
       - --header
       - "Authorization: Bearer {{ continue_dev_mcp_token }}"
+    env:
+      NODE_VERSION: "{{ continue_dev_node_version }}"
 {% endfor %}
 {% elif continue_dev_mcp_mode == "remote" %}
 mcpServers:
@@ -35,6 +37,7 @@ mcpServers:
       - --header
       - "Authorization: Bearer {{ continue_dev_mcp_token }}"
     env:
+      NODE_VERSION: "{{ continue_dev_node_version }}"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
 {% endfor %}
 {% endif %}
