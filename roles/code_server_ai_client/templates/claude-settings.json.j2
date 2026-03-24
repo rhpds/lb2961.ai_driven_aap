@@ -1,4 +1,9 @@
 {
+  "hasCompletedOnboarding": true,
+  "customApiKeyResponses": {
+    "approved": ["{{ (_claude_api_key | trim)[5:] }}"],
+    "rejected": []
+  }{{ "," if ai_client_mcp_enabled | bool else "" }}
 {% if ai_client_mcp_enabled | bool %}
 {% set _toolsets = ['job_management', 'inventory_management', 'system_monitoring', 'user_management', 'security_compliance', 'platform_configuration'] %}
 {% set _names = ['aap-job-mgmt', 'aap-inventory', 'aap-monitoring', 'aap-user-mgmt', 'aap-security', 'aap-config'] %}
