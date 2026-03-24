@@ -42,10 +42,10 @@
          if ai_client_proxy_enabled | bool
          else claude_code_api_key }}
 
-- name: Place Claude Code settings.json (env vars and MCP servers)
+- name: Place .claude.json (env vars and MCP servers)
   ansible.builtin.template:
     src: claude-settings.json.j2
-    dest: "/home/{{ student_name }}/.claude/settings.json"
+    dest: "/home/{{ student_name }}/.claude.json"
     owner: "{{ student_name }}"
     group: "{{ student_name }}"
     mode: "0600"
