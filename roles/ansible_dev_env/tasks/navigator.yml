@@ -22,3 +22,10 @@
     owner: "{{ student_name }}"
     group: "{{ student_name }}"
     mode: "0644"
+
+- name: Pre-pull execution environment image
+  become_user: "{{ student_name }}"
+  containers.podman.podman_image:
+    name: "{{ ansible_dev_env_ee_image }}"
+    pull: true
+    state: present
