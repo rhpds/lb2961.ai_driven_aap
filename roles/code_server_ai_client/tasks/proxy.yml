@@ -1,0 +1,58 @@
+---
+# Deploys a lightweight API proxy:
+# - Strips unsupported anthropic-beta headers (for Claude Code via MaaS)
+# - Translates Google Generative AI format to OpenAI (for Lightspeed)
+# Runs as a system service with credentials in a root-owned env file.
+
+- name: Install aiohttp in system Python
+  ansible.builtin.pip:
+    name: aiohttp
+    executable: pip3
+
+- name: Create proxy directory
+  ansible.builtin.file:
+    path: /opt/ai-proxy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place API proxy script
+  ansible.builtin.template:
+    src: api-proxy.py.j2
+    dest: /opt/ai-proxy/api-proxy.py
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Place API proxy credentials
+  ansible.builtin.template:
+    src: api-proxy.env.j2
+    dest: /opt/ai-proxy/credentials.env
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Place API proxy systemd service
+  ansible.builtin.template:
+    src: api-proxy.service.j2
+    dest: /etc/systemd/system/ai-proxy.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable and start API proxy service
+  ansible.builtin.systemd:
+    name: ai-proxy
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Wait for API proxy to be ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ ai_client_proxy_port }}/"
+    status_code: [200, 404]
+  retries: 6
+  delay: 5
+  register: _proxy_health
+  until: _proxy_health is not failed

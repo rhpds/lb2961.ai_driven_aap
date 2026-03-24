@@ -1,0 +1,65 @@
+---
+# Installs Claude Code CLI, VS Code extension, and configures
+# settings and MCP servers.
+
+- name: Install Claude Code CLI via npm
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      source /home/{{ student_name }}/.nvm/nvm.sh &&
+      npm install -g {{ claude_code_npm_package }}
+    executable: /bin/bash
+  register: _claude_install
+  changed_when: "'added' in _claude_install.stdout"
+
+- name: Install Claude Code VS Code extension
+  when: claude_code_vsix_url | default('') | length > 0
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      code-server --install-extension {{ claude_code_vsix_url }}
+    executable: /bin/bash
+  register: _claude_ext
+  changed_when: "'was successfully installed' in _claude_ext.stdout"
+  failed_when: false
+
+- name: Create Claude Code config directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/.claude"
+    state: directory
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0700"
+
+- name: Determine API base URL
+  ansible.builtin.set_fact:
+    _claude_base_url: >-
+      {{ 'http://127.0.0.1:' ~ ai_client_proxy_port
+         if ai_client_proxy_enabled | bool
+         else claude_code_base_url }}
+    _claude_api_key: >-
+      {{ ai_client_proxy_upstream_api_key
+         if ai_client_proxy_enabled | bool
+         else claude_code_api_key }}
+
+- name: Place Claude Code settings.json (env vars and MCP servers)
+  ansible.builtin.template:
+    src: claude-settings.json.j2
+    dest: "/home/{{ student_name }}/.claude/settings.json"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+    mode: "0600"
+
+- name: Set Claude Code environment in .bashrc
+  ansible.builtin.blockinfile:
+    path: "/home/{{ student_name }}/.bashrc"
+    marker: "# {mark} CLAUDE CODE ENV"
+    block: |
+      export ANTHROPIC_BASE_URL="{{ _claude_base_url | trim }}"
+      export ANTHROPIC_API_KEY="{{ _claude_api_key | trim }}"
+    owner: "{{ student_name }}"
+    group: "{{ student_name }}"
+
+
+# Note: claudeCode.disableLoginPrompt is set via vscode_server_additional_settings
+# in the catalog YAML, which the vscode-server workload writes to settings.json.

@@ -1,0 +1,57 @@
+---
+# Role: code_server_ai_client
+# Configures an AI coding assistant in code-server.
+# Set ai_client to select which client to configure.
+
+- name: Install nvm
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v{{ ai_client_nvm_version }}/install.sh | bash
+    creates: "/home/{{ student_name }}/.nvm/nvm.sh"
+
+- name: Install Node.js via nvm
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      source /home/{{ student_name }}/.nvm/nvm.sh &&
+      nvm install {{ ai_client_node_version }}
+    executable: /bin/bash
+    creates: "/home/{{ student_name }}/.nvm/versions/node"
+
+- name: Create AAP gateway token for MCP authentication
+  when:
+    - ai_client_mcp_enabled | bool
+    - ai_client_mcp_token | default('') | length == 0
+  environment:
+    GATEWAY_HOSTNAME: "{{ ansible_automation_platform_configuration_host }}"
+    GATEWAY_USERNAME: "{{ ansible_automation_platform_configuration_username }}"
+    GATEWAY_PASSWORD: "{{ ansible_automation_platform_configuration_password }}"
+    GATEWAY_VERIFY_SSL: "{{ ansible_automation_platform_configuration_verify_ssl }}"
+  ansible.platform.token:
+    description: MCP server authentication token
+    scope: write
+    state: present
+  register: _gateway_token_result
+  until: _gateway_token_result is not failed
+  retries: 30
+  delay: 10
+
+- name: Set MCP token from gateway response
+  when:
+    - _gateway_token_result is defined
+    - _gateway_token_result is not skipped
+  ansible.builtin.set_fact:
+    ai_client_mcp_token: "{{ _gateway_token_result.ansible_facts.aap_token.token }}"
+
+- name: Set up API proxy
+  when: ai_client_proxy_enabled | bool
+  ansible.builtin.include_tasks: proxy.yml
+
+- name: Configure Claude Code
+  when: ai_client == "claude_code"
+  ansible.builtin.include_tasks: claude_code.yml
+
+- name: Configure Continue.dev
+  when: ai_client == "continue_dev"
+  ansible.builtin.include_tasks: continue_dev.yml

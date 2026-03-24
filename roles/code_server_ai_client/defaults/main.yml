@@ -1,0 +1,51 @@
+---
+# AI client to configure: "claude_code" or "continue_dev"
+ai_client: claude_code
+
+# -------------------------------------------------------------------
+# Common settings (shared across clients)
+# -------------------------------------------------------------------
+
+# nvm and Node.js versions
+ai_client_nvm_version: "0.40.1"
+ai_client_node_version: "20"
+
+# MCP server configuration for AAP integration
+ai_client_mcp_enabled: false
+ai_client_mcp_mode: standalone
+ai_client_mcp_port: 8448
+ai_client_mcp_gateway_host: ""
+ai_client_mcp_token: ""
+
+# -------------------------------------------------------------------
+# API proxy (strips unsupported headers for Vertex AI via MaaS)
+# -------------------------------------------------------------------
+ai_client_proxy_enabled: false
+ai_client_proxy_port: 4010
+ai_client_proxy_upstream_url: ""
+ai_client_proxy_upstream_api_key: ""
+ai_client_proxy_blocked_betas:
+  - prompt-caching-scope-2026-01-05
+  - redact-thinking-2026-02-12
+
+# Gemini translation proxy (Google Generative AI format -> OpenAI format)
+ai_client_proxy_gemini_port: 4011
+ai_client_proxy_gemini_model: gemini-2.5-pro
+
+# -------------------------------------------------------------------
+# Claude Code settings
+# -------------------------------------------------------------------
+claude_code_npm_package: "@anthropic-ai/claude-code"
+claude_code_api_key: ""
+claude_code_base_url: ""
+
+# Claude Code VS Code extension
+claude_code_vsix_url: ""
+
+# -------------------------------------------------------------------
+# Continue.dev settings (for future use)
+# -------------------------------------------------------------------
+continue_dev_model_name: Gemini
+continue_dev_model_provider: gemini
+continue_dev_model_id: gemini-2.5-pro
+continue_dev_model_api_key: ""
