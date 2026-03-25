@@ -3,11 +3,12 @@
   "customApiKeyResponses": {
     "approved": ["{{ (_claude_api_key | trim)[5:] }}"],
     "rejected": []
-  }{{ "," if ai_client_mcp_enabled | bool else "" }}
+  }{{ "," if (ai_client_mcp_enabled | bool) or (ai_client_lightspeed_mcp_enabled | default(false) | bool) else "" }}
+{% if (ai_client_mcp_enabled | bool) or (ai_client_lightspeed_mcp_enabled | default(false) | bool) %}
+  "mcpServers": {
 {% if ai_client_mcp_enabled | bool %}
 {% set _toolsets = ['job_management', 'inventory_management', 'system_monitoring', 'user_management', 'security_compliance', 'platform_configuration'] %}
 {% set _names = ['aap-job-mgmt', 'aap-inventory', 'aap-monitoring', 'aap-user-mgmt', 'aap-security', 'aap-config'] %}
-  "mcpServers": {
 {% for i in range(_toolsets | length) %}
     "{{ _names[i] }}": {
       "command": "/home/{{ student_name }}/.nvm/nvm-exec",
@@ -29,8 +30,27 @@
         ,"NODE_TLS_REJECT_UNAUTHORIZED": "0"
 {% endif %}
       }
-    }{{ "," if not loop.last else "" }}
+    }{{ "," if not loop.last or (ai_client_lightspeed_mcp_enabled | default(false) | bool) else "" }}
 {% endfor %}
+{% endif %}
+{% if ai_client_lightspeed_mcp_enabled | default(false) | bool %}
+    "lightspeed-mcp": {
+      "command": "/home/{{ student_name }}/.nvm/nvm-exec",
+      "args": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "http://localhost:{{ ai_client_lightspeed_mcp_port }}/mcp",
+        "--header",
+        "lightspeed-client-id: {{ ai_client_lightspeed_mcp_client_id }}",
+        "--header",
+        "lightspeed-client-secret: {{ ai_client_lightspeed_mcp_client_secret }}"
+      ],
+      "env": {
+        "NODE_VERSION": "{{ ai_client_node_version }}"
+      }
+    }
+{% endif %}
   }
 {% endif %}
 }

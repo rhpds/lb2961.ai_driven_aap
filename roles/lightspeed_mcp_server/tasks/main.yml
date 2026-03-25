@@ -1,0 +1,37 @@
+---
+# Role: lightspeed_mcp_server
+# Runs the Red Hat Lightspeed MCP server as a container on the bastion,
+# providing access to Red Hat Insights services (Advisor, Vulnerability,
+# Remediation, Inventory, RHSM, Image Builder, etc.).
+
+- name: Pull Lightspeed MCP container image
+  when: lightspeed_mcp_enabled | bool
+  become: true
+  containers.podman.podman_image:
+    name: "{{ lightspeed_mcp_image }}"
+
+- name: Run Lightspeed MCP container (HTTP mode)
+  when: lightspeed_mcp_enabled | bool
+  become: true
+  containers.podman.podman_container:
+    name: "{{ lightspeed_mcp_container_name }}"
+    image: "{{ lightspeed_mcp_image }}"
+    state: started
+    restart_policy: always
+    command: http
+    env:
+      LIGHTSPEED_CLIENT_ID: "{{ lightspeed_mcp_client_id }}"
+      LIGHTSPEED_CLIENT_SECRET: "{{ lightspeed_mcp_client_secret }}"
+    ports:
+      - "{{ lightspeed_mcp_port }}:8000"
+
+- name: Wait for Lightspeed MCP server to be ready
+  when: lightspeed_mcp_enabled | bool
+  ansible.builtin.uri:
+    url: "http://localhost:{{ lightspeed_mcp_port }}/mcp"
+    method: GET
+    status_code: [200, 405]
+  register: _lightspeed_health
+  retries: 12
+  delay: 5
+  until: _lightspeed_health is not failed

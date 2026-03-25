@@ -6,11 +6,12 @@ models:
     provider: gemini
     model: gemini-2.5-pro
     apiKey: ""
+{% if (continue_dev_mcp_enabled | bool) or (continue_dev_lightspeed_mcp_enabled | default(false) | bool) %}
+mcpServers:
 {% if continue_dev_mcp_enabled | bool %}
 {% set _toolsets = ['job_management', 'inventory_management', 'system_monitoring', 'user_management', 'security_compliance', 'platform_configuration'] %}
 {% set _names = ['aap-job-mgmt', 'aap-inventory', 'aap-monitoring', 'aap-user-mgmt', 'aap-security', 'aap-config'] %}
 {% if continue_dev_mcp_mode == "standalone" %}
-mcpServers:
 {% for i in range(_toolsets | length) %}
   - name: {{ _names[i] }}
     command: /home/{{ student_name }}/.nvm/nvm-exec
@@ -25,7 +26,6 @@ mcpServers:
       NODE_VERSION: "{{ continue_dev_node_version }}"
 {% endfor %}
 {% elif continue_dev_mcp_mode == "remote" %}
-mcpServers:
 {% for i in range(_toolsets | length) %}
   - name: {{ _names[i] }}
     command: /home/{{ student_name }}/.nvm/nvm-exec
@@ -40,5 +40,21 @@ mcpServers:
       NODE_VERSION: "{{ continue_dev_node_version }}"
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
 {% endfor %}
+{% endif %}
+{% endif %}
+{% if continue_dev_lightspeed_mcp_enabled | default(false) | bool %}
+  - name: lightspeed-mcp
+    command: /home/{{ student_name }}/.nvm/nvm-exec
+    args:
+      - npx
+      - -y
+      - mcp-remote
+      - "http://localhost:{{ continue_dev_lightspeed_mcp_port }}/mcp"
+      - --header
+      - "lightspeed-client-id: {{ continue_dev_lightspeed_mcp_client_id }}"
+      - --header
+      - "lightspeed-client-secret: {{ continue_dev_lightspeed_mcp_client_secret }}"
+    env:
+      NODE_VERSION: "{{ continue_dev_node_version }}"
 {% endif %}
 {% endif %}

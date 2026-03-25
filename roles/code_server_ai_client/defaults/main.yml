@@ -17,6 +17,12 @@ ai_client_mcp_port: 8448
 ai_client_mcp_gateway_host: ""
 ai_client_mcp_token: ""
 
+# Red Hat Lightspeed MCP (Insights: Advisor, Vulnerability, Remediation, etc.)
+ai_client_lightspeed_mcp_enabled: false
+ai_client_lightspeed_mcp_port: 8000
+ai_client_lightspeed_mcp_client_id: ""
+ai_client_lightspeed_mcp_client_secret: ""
+
 # -------------------------------------------------------------------
 # API proxy (strips unsupported headers for Vertex AI via MaaS)
 # -------------------------------------------------------------------
