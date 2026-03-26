@@ -1,0 +1,59 @@
+---
+description: Working with the agnosticv repo for lab deployment configs
+alwaysApply: true
+---
+
+# agnosticv Repo Workflow
+
+## Repo Location
+
+The agnosticv repo is at `~/Documents/GitHub/agnosticv` (remote: `rhpds/agnosticv`). It is a separate repo from this collection. The default branch is `master`.
+
+## Where Lab Config Lives
+
+The LB2961 lab config file is:
+```
+sandboxes-gpte/AI_DRIVEN_ANSIBLE_AUTOMATION/common.yaml
+```
+
+This file defines instances, security groups, workloads, AAP configuration, EDA setup, and all variables consumed by this Ansible collection's roles at deploy time.
+
+**Note**: There may also be a `summit-2025/lb2961-ai-driven-ansible-automation/common.yaml` on feature branches — but the canonical path on `master` is under `sandboxes-gpte/`.
+
+## PR Workflow
+
+### Contributing to an existing PR
+
+To push a commit to someone else's open PR:
+
+```bash
+cd ~/Documents/GitHub/agnosticv
+git fetch origin <branch-name>
+git checkout <branch-name>
+# Make changes, then:
+git add <files>
+git commit -m "description"
+git push origin <branch-name>
+```
+
+Use `gh pr view <number> --json headRefName` to find the branch name.
+
+### Creating a new PR
+
+Always branch from `origin/master`:
+
+```bash
+git fetch origin master
+git checkout -b feat/<descriptive-name> origin/master
+# Make changes, commit, then:
+git push -u origin feat/<descriptive-name>
+gh pr create --base master --title "..." --body "..."
+```
+
+## Pre-commit Hook
+
+The agnosticv repo has a `rh-multi-pre-commit` hook for leak detection. It runs automatically on commit. If it blocks a commit, do NOT skip it with `--no-verify` — fix the leak.
+
+## Variable Naming
+
+Variables set in `common.yaml` flow into this collection's roles via their `defaults/main.yml`. Match variable names exactly (e.g., `lightspeed_mcp_client_id` in agnosticv must match `lightspeed_mcp_client_id` in `roles/lightspeed_mcp_server/defaults/main.yml`).
