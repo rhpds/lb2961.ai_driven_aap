@@ -5,13 +5,11 @@
 # Remediation, Inventory, RHSM, Image Builder, etc.).
 
 - name: Pull Lightspeed MCP container image
-  when: lightspeed_mcp_enabled | bool
   become: true
   containers.podman.podman_image:
     name: "{{ lightspeed_mcp_image }}"
 
 - name: Run Lightspeed MCP container (HTTP mode)
-  when: lightspeed_mcp_enabled | bool
   become: true
   containers.podman.podman_container:
     name: "{{ lightspeed_mcp_container_name }}"
@@ -26,7 +24,6 @@
       - "{{ lightspeed_mcp_port }}:8000"
 
 - name: Wait for Lightspeed MCP server to be ready
-  when: lightspeed_mcp_enabled | bool
   ansible.builtin.uri:
     url: "http://localhost:{{ lightspeed_mcp_port }}/mcp"
     method: GET

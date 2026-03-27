@@ -3,8 +3,7 @@
   "customApiKeyResponses": {
     "approved": ["{{ (_claude_api_key | trim)[5:] }}"],
     "rejected": []
-  }{{ "," if (ai_client_mcp_enabled | bool) or (ai_client_lightspeed_mcp_enabled | default(false) | bool) else "" }}
-{% if (ai_client_mcp_enabled | bool) or (ai_client_lightspeed_mcp_enabled | default(false) | bool) %}
+  },
   "mcpServers": {
 {% if ai_client_mcp_enabled | bool %}
 {% set _toolsets = ['job_management', 'inventory_management', 'system_monitoring', 'user_management', 'security_compliance', 'platform_configuration'] %}
@@ -30,10 +29,9 @@
         ,"NODE_TLS_REJECT_UNAUTHORIZED": "0"
 {% endif %}
       }
-    }{{ "," if not loop.last or (ai_client_lightspeed_mcp_enabled | default(false) | bool) else "" }}
+    },
 {% endfor %}
 {% endif %}
-{% if ai_client_lightspeed_mcp_enabled | default(false) | bool %}
     "lightspeed-mcp": {
       "command": "/home/{{ student_name }}/.nvm/nvm-exec",
       "args": [
@@ -50,7 +48,5 @@
         "NODE_VERSION": "{{ ai_client_node_version }}"
       }
     }
-{% endif %}
   }
-{% endif %}
 }

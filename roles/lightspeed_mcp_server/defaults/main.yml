@@ -2,7 +2,6 @@
 # Lightspeed MCP server container configuration
 # Provides Red Hat Insights toolsets: Advisor, Vulnerability, Remediation,
 # Inventory, RHSM, Image Builder, Content Sources, RBAC, Planning.
-lightspeed_mcp_enabled: false
 lightspeed_mcp_image: ghcr.io/redhatinsights/red-hat-lightspeed-mcp:latest
 lightspeed_mcp_container_name: lightspeed-mcp-server
 lightspeed_mcp_port: 8000

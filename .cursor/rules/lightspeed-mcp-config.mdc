@@ -6,6 +6,8 @@ alwaysApply: false
 
 # Lightspeed MCP Credential Flow
 
+Lightspeed MCP is always enabled — there are no feature flags. If the role runs, it configures Lightspeed.
+
 ## Three Roles Consume MCP Credentials
 
 The same Lightspeed client ID and secret are used by three roles, each with its own variable name:
@@ -20,15 +22,10 @@ The same Lightspeed client ID and secret are used by three roles, each with its 
 
 Vault-encrypted values go in **agnosticv** (`sandboxes-gpte/AI_DRIVEN_ANSIBLE_AUTOMATION/common.yaml`), not in this collection's defaults. The defaults here are empty strings — they get overridden at deploy time.
 
-## Enable Flags
-
-Each role has an enable flag that defaults to `false`:
-- `lightspeed_mcp_enabled`
-- `ai_client_lightspeed_mcp_enabled`
-- `continue_dev_lightspeed_mcp_enabled`
-
-Set these to `true` in agnosticv to activate the Lightspeed MCP integration.
-
 ## Container Details
 
 The `lightspeed_mcp_server` role runs `ghcr.io/redhatinsights/red-hat-lightspeed-mcp:latest` in Podman, passing credentials as environment variables `LIGHTSPEED_CLIENT_ID` and `LIGHTSPEED_CLIENT_SECRET`. The MCP endpoint is `http://localhost:<port>/mcp`.
+
+## Template Behavior
+
+Both `claude-settings.json.j2` and `config.yaml.j2` always include the `lightspeed-mcp` server entry. The AAP MCP servers (`aap-job-mgmt`, etc.) are still conditional on `ai_client_mcp_enabled` / `continue_dev_mcp_enabled`.

@@ -6,7 +6,6 @@ models:
     provider: gemini
     model: gemini-2.5-pro
     apiKey: ""
-{% if (continue_dev_mcp_enabled | bool) or (continue_dev_lightspeed_mcp_enabled | default(false) | bool) %}
 mcpServers:
 {% if continue_dev_mcp_enabled | bool %}
 {% set _toolsets = ['job_management', 'inventory_management', 'system_monitoring', 'user_management', 'security_compliance', 'platform_configuration'] %}
@@ -42,7 +41,6 @@ mcpServers:
 {% endfor %}
 {% endif %}
 {% endif %}
-{% if continue_dev_lightspeed_mcp_enabled | default(false) | bool %}
   - name: lightspeed-mcp
     command: /home/{{ student_name }}/.nvm/nvm-exec
     args:
@@ -56,5 +54,3 @@ mcpServers:
       - "lightspeed-client-secret: {{ continue_dev_lightspeed_mcp_client_secret }}"
     env:
       NODE_VERSION: "{{ continue_dev_node_version }}"
-{% endif %}
-{% endif %}

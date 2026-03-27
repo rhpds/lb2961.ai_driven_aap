@@ -21,7 +21,6 @@ continue_dev_nvm_version: "0.40.1"
 continue_dev_node_version: "20"
 
 # Red Hat Lightspeed MCP (Insights: Advisor, Vulnerability, Remediation, etc.)
-continue_dev_lightspeed_mcp_enabled: false
 continue_dev_lightspeed_mcp_port: 8000
 continue_dev_lightspeed_mcp_client_id: ""
 continue_dev_lightspeed_mcp_client_secret: ""
