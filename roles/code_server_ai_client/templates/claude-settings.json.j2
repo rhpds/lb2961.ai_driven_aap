@@ -1,7 +1,11 @@
 {
   "hasCompletedOnboarding": true,
   "customApiKeyResponses": {
+{% if (_claude_api_key | trim | length) > 5 %}
     "approved": ["{{ (_claude_api_key | trim)[5:] }}"],
+{% else %}
+    "approved": [],
+{% endif %}
     "rejected": []
   },
   "mcpServers": {
@@ -14,7 +18,7 @@
       "args": [
         "npx",
         "-y",
-        "mcp-remote",
+        "mcp-remote@{{ mcp_remote_version }}",
 {% if ai_client_mcp_mode == "standalone" %}
         "http://localhost:{{ ai_client_mcp_port }}/mcp/{{ _toolsets[i] }}",
 {% elif ai_client_mcp_mode == "remote" %}
@@ -37,7 +41,7 @@
       "args": [
         "npx",
         "-y",
-        "mcp-remote",
+        "mcp-remote@{{ mcp_remote_version }}",
         "http://localhost:{{ ai_client_lightspeed_mcp_port }}/mcp",
         "--header",
         "lightspeed-client-id: {{ ai_client_lightspeed_mcp_client_id }}",

@@ -17,7 +17,7 @@ mcpServers:
     args:
       - npx
       - -y
-      - mcp-remote
+      - "mcp-remote@{{ mcp_remote_version }}"
       - "http://localhost:{{ continue_dev_mcp_port }}/mcp/{{ _toolsets[i] }}"
       - --header
       - "Authorization: Bearer {{ continue_dev_mcp_token }}"
@@ -31,7 +31,7 @@ mcpServers:
     args:
       - npx
       - -y
-      - mcp-remote
+      - "mcp-remote@{{ mcp_remote_version }}"
       - "https://{{ continue_dev_mcp_gateway_host }}:8448/{{ _toolsets[i] }}/mcp"
       - --header
       - "Authorization: Bearer {{ continue_dev_mcp_token }}"
@@ -46,7 +46,7 @@ mcpServers:
     args:
       - npx
       - -y
-      - mcp-remote
+      - "mcp-remote@{{ mcp_remote_version }}"
       - "http://localhost:{{ continue_dev_lightspeed_mcp_port }}/mcp"
       - --header
       - "lightspeed-client-id: {{ continue_dev_lightspeed_mcp_client_id }}"

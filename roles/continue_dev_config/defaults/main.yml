@@ -16,11 +16,13 @@ continue_dev_mcp_gateway_host: ""
 # AAP gateway token (must be created before calling this role)
 continue_dev_mcp_token: ""
 
-# nvm and Node.js versions (for npx mcp-remote)
+# nvm, Node.js, and mcp-remote versions (for npx mcp-remote)
 continue_dev_nvm_version: "0.40.1"
 continue_dev_node_version: "20"
+mcp_remote_version: "0.1.38"
 
 # Red Hat Lightspeed MCP (Insights: Advisor, Vulnerability, Remediation, etc.)
+# Port must match lightspeed_mcp_port in the lightspeed_mcp_server role
 continue_dev_lightspeed_mcp_port: 8000
 continue_dev_lightspeed_mcp_client_id: ""
 continue_dev_lightspeed_mcp_client_secret: ""

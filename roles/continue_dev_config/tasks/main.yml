@@ -38,8 +38,6 @@
     continue_dev_mcp_token: "{{ _gateway_token_result.ansible_facts.aap_token.token }}"
 
 - name: Install nvm for npx mcp-remote
-  when:
-    - continue_dev_mcp_enabled | bool
   become_user: "{{ student_name }}"
   ansible.builtin.shell:
     cmd: >-
@@ -47,8 +45,6 @@
     creates: "/home/{{ student_name }}/.nvm/nvm.sh"
 
 - name: Install Node.js via nvm
-  when:
-    - continue_dev_mcp_enabled | bool
   become_user: "{{ student_name }}"
   ansible.builtin.shell:
     cmd: >-
@@ -56,6 +52,16 @@
       nvm install {{ continue_dev_node_version }}
     executable: /bin/bash
     creates: "/home/{{ student_name }}/.nvm/versions/node"
+
+- name: Pre-install mcp-remote to avoid cold-start download
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      source /home/{{ student_name }}/.nvm/nvm.sh &&
+      npm install -g mcp-remote@{{ continue_dev_mcp_remote_version | default(mcp_remote_version) }}
+    executable: /bin/bash
+  register: _mcp_remote_install
+  changed_when: "'added' in _mcp_remote_install.stdout"
 
 - name: Place Continue.dev config.yaml
   ansible.builtin.template:
