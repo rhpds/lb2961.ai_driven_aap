@@ -33,9 +33,10 @@
         ,"NODE_TLS_REJECT_UNAUTHORIZED": "0"
 {% endif %}
       }
-    },
+    }{{ "," if not loop.last or (ai_client_lightspeed_mcp_enabled | default(false) | bool) else "" }}
 {% endfor %}
 {% endif %}
+{% if ai_client_lightspeed_mcp_enabled | default(false) | bool %}
     "lightspeed-mcp": {
       "command": "/home/{{ student_name }}/.nvm/nvm-exec",
       "args": [
@@ -52,5 +53,6 @@
         "NODE_VERSION": "{{ ai_client_node_version }}"
       }
     }
+{% endif %}
   }
 }

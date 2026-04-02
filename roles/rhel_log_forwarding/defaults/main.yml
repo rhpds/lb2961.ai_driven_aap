@@ -1,0 +1,5 @@
+---
+# rsyslog forwarding to Splunk syslog input
+rhel_log_forwarding_target: "bastion"
+rhel_log_forwarding_port: 5514
+rhel_log_forwarding_protocol: "tcp"

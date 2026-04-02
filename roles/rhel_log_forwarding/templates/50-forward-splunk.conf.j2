@@ -1,0 +1,2 @@
+# Forward all system logs to Splunk syslog input
+*.* @@{{ rhel_log_forwarding_target }}:{{ rhel_log_forwarding_port }}

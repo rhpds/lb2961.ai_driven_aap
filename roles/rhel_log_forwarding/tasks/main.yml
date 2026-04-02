@@ -1,0 +1,18 @@
+---
+# Role: rhel_log_forwarding
+# Configures rsyslog on RHEL nodes to forward system logs to Splunk
+# syslog input. Used for RHEL self-healing demo with Splunk + EDA.
+
+- name: Configure rsyslog forwarding to Splunk
+  ansible.builtin.template:
+    src: 50-forward-splunk.conf.j2
+    dest: /etc/rsyslog.d/50-forward-splunk.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Restart rsyslog to apply forwarding config
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: restarted
+    enabled: true
