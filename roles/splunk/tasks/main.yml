@@ -124,6 +124,23 @@
   retries: 20
   delay: 5
 
+- name: Create Splunk TCP data inputs
+  ansible.builtin.uri:
+    url: "https://localhost:8089/services/data/inputs/tcp/raw"
+    method: POST
+    user: admin
+    password: "{{ splunk_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      name: "{{ item.port }}"
+      sourcetype: "{{ item.sourcetype }}"
+      index: "{{ item.index }}"
+    status_code: [200, 201, 409]
+  loop: "{{ splunk_data_inputs }}"
+  when: splunk_data_inputs | default([]) | length > 0
+
 - name: Generate systemd service file for Splunk container
   containers.podman.podman_generate_systemd:
     name: "{{ splunk_container_name }}"

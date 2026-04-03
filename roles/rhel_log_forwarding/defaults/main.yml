@@ -1,5 +1,6 @@
 ---
 # rsyslog forwarding to Splunk syslog input
+# Port 1514 avoids conflict with 5514 (used by Cisco IOS syslog in OSPF lab)
 rhel_log_forwarding_target: "bastion"
-rhel_log_forwarding_port: 5514
+rhel_log_forwarding_port: 1514
 rhel_log_forwarding_protocol: "tcp"
