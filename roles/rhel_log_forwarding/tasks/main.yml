@@ -3,11 +3,12 @@
 # Configures rsyslog on RHEL nodes to forward system logs to Splunk
 # syslog input. Used for RHEL self-healing demo with Splunk + EDA.
 
-- name: Allow rsyslog to make network connections (SELinux)
-  ansible.posix.seboolean:
-    name: syslogd_can_network_connect
-    state: true
-    persistent: true
+- name: Allow rsyslog to connect to syslog port (SELinux)
+  community.general.seport:
+    ports: "{{ rhel_log_forwarding_port }}"
+    proto: tcp
+    setype: syslogd_port_t
+    state: present
 
 - name: Configure rsyslog forwarding to Splunk
   ansible.builtin.template:
