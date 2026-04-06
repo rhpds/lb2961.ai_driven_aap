@@ -4,11 +4,12 @@
 # syslog input. Used for RHEL self-healing demo with Splunk + EDA.
 
 - name: Allow rsyslog to connect to syslog port (SELinux)
-  community.general.seport:
-    ports: "{{ rhel_log_forwarding_port }}"
-    proto: tcp
-    setype: syslogd_port_t
-    state: present
+  ansible.builtin.command:
+    cmd: semanage port -a -t syslogd_port_t -p tcp {{ rhel_log_forwarding_port }}
+  register: _seport
+  changed_when: _seport.rc == 0
+  failed_when: _seport.rc != 0 and 'already defined' not in _seport.stderr
+  become: true
 
 - name: Configure rsyslog forwarding to Splunk
   ansible.builtin.template:
