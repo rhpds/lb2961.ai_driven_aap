@@ -16,7 +16,7 @@
     image: "{{ lightspeed_mcp_image }}"
     state: started
     restart_policy: always
-    command: http
+    command: http --host 0.0.0.0
     env:
       LIGHTSPEED_CLIENT_ID: "{{ lightspeed_mcp_client_id }}"
       LIGHTSPEED_CLIENT_SECRET: "{{ lightspeed_mcp_client_secret }}"
@@ -27,7 +27,7 @@
   ansible.builtin.uri:
     url: "http://localhost:{{ lightspeed_mcp_port }}/mcp"
     method: GET
-    status_code: [200, 405]
+    status_code: [200, 405, 406]
   register: _lightspeed_health
   retries: 12
   delay: 5
