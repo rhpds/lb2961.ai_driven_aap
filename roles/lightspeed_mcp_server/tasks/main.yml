@@ -9,19 +9,36 @@
   containers.podman.podman_image:
     name: "{{ lightspeed_mcp_image }}"
 
-- name: Run Lightspeed MCP container (HTTP mode)
+- name: Lightspeed MCP (HTTP mode) Quadlet
   become: true
   containers.podman.podman_container:
     name: "{{ lightspeed_mcp_container_name }}"
     image: "{{ lightspeed_mcp_image }}"
-    state: started
-    restart_policy: always
+    state: quadlet
     command: http --host 0.0.0.0
     env:
       LIGHTSPEED_CLIENT_ID: "{{ lightspeed_mcp_client_id }}"
       LIGHTSPEED_CLIENT_SECRET: "{{ lightspeed_mcp_client_secret }}"
     ports:
       - "{{ lightspeed_mcp_port }}:8000"
+    quadlet_options:
+      - "AutoUpdate=registry"
+      - "Pull=newer"
+      - |
+        [Service]
+        Restart=on-failure
+        RestartSec=30
+
+        [Install]
+        WantedBy=default.target
+
+- name: Enable and start Lightspeed MCP service
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ lightspeed_mcp_container_name }}.service"
+    daemon_reload: true
+    enabled: true
+    state: restarted
 
 - name: Wait for Lightspeed MCP server to be ready
   ansible.builtin.uri:
