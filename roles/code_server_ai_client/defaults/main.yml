@@ -34,6 +34,7 @@ ai_client_proxy_upstream_api_key: ""
 ai_client_proxy_blocked_betas:
   - prompt-caching-scope-2026-01-05
   - redact-thinking-2026-02-12
+  - advisor-tool-2026-03-01
 
 # Gemini translation proxy (Google Generative AI format -> OpenAI format)
 ai_client_proxy_gemini_port: 4011
