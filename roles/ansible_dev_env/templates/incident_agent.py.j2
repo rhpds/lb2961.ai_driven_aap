@@ -3,9 +3,10 @@
 Agentic AIOps Incident Response
 ================================
 A CrewAI multi-agent workflow that uses Ansible Automation Platform
-as its trusted execution layer. The agents are problem-agnostic --
-they discover available AAP automation dynamically and reason about
-whether existing job templates can solve the reported problem.
+as its trusted execution layer via MCP (Model Context Protocol).
+The agents are problem-agnostic -- they discover available AAP
+automation dynamically through MCP tools and reason about whether
+existing job templates can solve the reported problem.
 
 Architecture:
   Triage Agent    -> understands the problem, discovers available AAP automation
@@ -13,8 +14,12 @@ Architecture:
   Reporter Agent  -> produces incident report with findings and recommendations
 
 The agents do NOT run commands directly. They interact exclusively
-through AAP job templates -- AI decides WHAT to do, Ansible handles
+through AAP via MCP tools -- AI decides WHAT to do, Ansible handles
 HOW to do it safely and at scale.
+
+Infrastructure:
+  LLM:   Claude via Anthropic proxy (localhost:{{ ai_client_proxy_port | default('8443') }})
+  Tools:  AAP MCP server (localhost:{{ mcp_server_port | default('8448') }})
 
 Usage:
   python3 incident_agent.py "Apache is down on node1"
@@ -24,6 +29,7 @@ Usage:
 """
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -37,184 +43,169 @@ except ImportError:
     sys.exit(1)
 
 try:
-    import requests
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamablehttp_client
 except ImportError:
-    print("requests is not installed. Run: pip install requests")
+    print("MCP client is not installed. Run: pip install mcp")
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
 # Configuration from environment (set by ansible_dev_env role)
 # ---------------------------------------------------------------------------
+MCP_BASE_URL = os.environ.get(
+    "MCP_BASE_URL",
+    "http://localhost:{{ mcp_server_port | default('8448') }}"
+)
+MCP_TOKEN = os.environ.get("MCP_TOKEN", "{{ ai_client_mcp_token | default('') }}")
+
+LLM_BASE_URL = os.environ.get(
+    "ANTHROPIC_BASE_URL",
+    "http://127.0.0.1:{{ ai_client_proxy_port | default('8443') }}"
+)
+LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+
+# AAP credentials for --break-first only (direct API call)
 AAP_BASE_URL = os.environ.get(
     "AAP_BASE_URL",
     "{{ ansible_automation_platform_configuration_host }}"
 )
 AAP_USERNAME = os.environ.get("AAP_USERNAME", "{{ student_name }}")
 AAP_PASSWORD = os.environ.get("AAP_PASSWORD", "{{ common_password }}")
-LLM_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "http://127.0.0.1:{{ ai_client_proxy_port | default('8443') }}")
-LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
 
 
 # ---------------------------------------------------------------------------
-# AAP API helper
+# MCP Client: discover and call AAP tools via MCP server
 # ---------------------------------------------------------------------------
-class AAPClient:
-    """Minimal AAP Gateway API client."""
+class MCPToolkit:
+    """Connects to the AAP MCP server and exposes tools for CrewAI."""
 
-    def __init__(self, base_url, username, password):
+    def __init__(self, base_url, token):
         self.base_url = base_url.rstrip("/")
-        self.session = requests.Session()
-        self.session.verify = False
-        self.session.auth = (username, password)
-        self.session.headers["Content-Type"] = "application/json"
+        self.token = token
+        self._tools_cache = {}
 
-    def get(self, path, **kwargs):
-        r = self.session.get(f"{self.base_url}{path}", **kwargs)
-        r.raise_for_status()
-        return r.json()
+    async def _call_mcp_tool(self, toolset, tool_name, arguments=None):
+        """Call a single MCP tool on the given toolset endpoint."""
+        url = f"{self.base_url}/mcp/{toolset}"
+        headers = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
 
-    def post(self, path, data=None, **kwargs):
-        r = self.session.post(f"{self.base_url}{path}", json=data, **kwargs)
-        r.raise_for_status()
-        return r.json()
+        async with streamablehttp_client(url, headers=headers) as (r, w, _):
+            async with ClientSession(r, w) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments or {})
+                # MCP returns content as a list of content blocks
+                texts = []
+                for block in result.content:
+                    if hasattr(block, "text"):
+                        texts.append(block.text)
+                return "\n".join(texts)
 
-    def find_template(self, name):
-        """Find a job template by exact name."""
-        result = self.get(
-            "/api/controller/v2/job_templates/",
-            params={"search": name}
+    async def discover_tools(self, toolset):
+        """List available tools from an MCP toolset endpoint."""
+        url = f"{self.base_url}/mcp/{toolset}"
+        headers = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
+        async with streamablehttp_client(url, headers=headers) as (r, w, _):
+            async with ClientSession(r, w) as session:
+                await session.initialize()
+                tools = await session.list_tools()
+                return tools.tools
+
+    def call_tool_sync(self, toolset, tool_name, arguments=None):
+        """Synchronous wrapper for calling MCP tools."""
+        return asyncio.get_event_loop().run_until_complete(
+            self._call_mcp_tool(toolset, tool_name, arguments)
         )
-        for t in result.get("results", []):
-            if t["name"] == name:
-                return t
-        return None
-
-    def launch_template(self, template_id, extra_vars=None):
-        """Launch a job template and return the job object."""
-        data = {}
-        if extra_vars:
-            data["extra_vars"] = json.dumps(extra_vars)
-        return self.post(
-            f"/api/controller/v2/job_templates/{template_id}/launch/",
-            data=data
-        )
-
-    def wait_for_job(self, job_id, timeout=120, poll=5):
-        """Poll until job completes. Returns final job object."""
-        end = time.time() + timeout
-        while time.time() < end:
-            job = self.get(f"/api/controller/v2/jobs/{job_id}/")
-            if job["status"] in ("successful", "failed", "error", "canceled"):
-                return job
-            time.sleep(poll)
-        raise TimeoutError(f"Job {job_id} did not complete in {timeout}s")
-
-    def get_job_stdout(self, job_id):
-        """Get plain-text stdout of a completed job."""
-        r = self.session.get(
-            f"{self.base_url}/api/controller/v2/jobs/{job_id}/stdout/",
-            params={"format": "txt"}
-        )
-        r.raise_for_status()
-        return r.text
 
 
-aap = AAPClient(AAP_BASE_URL, AAP_USERNAME, AAP_PASSWORD)
+mcp_toolkit = MCPToolkit(MCP_BASE_URL, MCP_TOKEN)
 
 
 # ---------------------------------------------------------------------------
-# CrewAI Tools -- wrappers around AAP operations
+# CrewAI Tools -- wrappers around MCP operations
 # ---------------------------------------------------------------------------
 @tool("List All Job Templates")
 def list_all_job_templates() -> str:
     """List ALL available job templates in AAP with their names and descriptions.
     Use this to discover what automation is available before deciding on a plan."""
-    result = aap.get("/api/controller/v2/job_templates/", params={"page_size": 50})
-    templates = [
-        {
-            "id": t["id"],
-            "name": t["name"],
-            "description": t.get("description", ""),
-        }
-        for t in result.get("results", [])
-    ]
-    if not templates:
-        return "No job templates found in AAP."
-    return json.dumps(templates, indent=2)
-
-
-@tool("Launch Job Template By Name")
-def launch_job_template(template_name: str) -> str:
-    """Launch an AAP job template by its exact name and wait for it to complete.
-    Returns the job status and output. Use this to run automation."""
-    t = aap.find_template(template_name)
-    if not t:
-        return json.dumps({
-            "error": f"Job template '{template_name}' not found in AAP",
-            "suggestion": "Use 'List All Job Templates' to see available templates"
-        })
-
-    job = aap.launch_template(t["id"])
-    job_id = job["id"]
-
-    try:
-        final = aap.wait_for_job(job_id)
-    except TimeoutError as e:
-        return json.dumps({"error": str(e)})
-
-    stdout = aap.get_job_stdout(job_id)
-    if len(stdout) > 3000:
-        stdout = stdout[:3000] + "\n... (truncated)"
-
-    return json.dumps({
-        "job_id": job_id,
-        "status": final["status"],
-        "template": template_name,
-        "output": stdout
-    }, indent=2)
-
-
-@tool("Get Recent Jobs")
-def get_recent_jobs() -> str:
-    """Get the 10 most recent AAP jobs with their status.
-    Useful for checking what ran recently and whether anything failed."""
-    result = aap.get(
-        "/api/controller/v2/jobs/",
-        params={"page_size": 10, "order_by": "-finished"}
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "job_templates_list", {"page_size": 50}
     )
-    jobs = [
-        {
-            "id": j["id"],
-            "name": j["name"],
-            "status": j["status"],
-            "finished": j.get("finished", ""),
-        }
-        for j in result.get("results", [])
-    ]
-    return json.dumps(jobs, indent=2)
+
+
+@tool("Get Job Template Details")
+def get_job_template_details(template_id: str) -> str:
+    """Get detailed information about a specific job template by its ID.
+    Use this to understand what a template does before launching it."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "job_templates_retrieve", {"id": template_id}
+    )
+
+
+@tool("Launch Job Template")
+def launch_job_template(template_id: str) -> str:
+    """Launch an AAP job template by its ID and return the launched job info.
+    Use this to run automation. You must poll the job status separately."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "job_templates_launch_create", {"id": template_id}
+    )
+
+
+@tool("Get Job Status")
+def get_job_status(job_id: str) -> str:
+    """Check the status of a running or completed job by its ID.
+    Status values: pending, waiting, running, successful, failed, error, canceled."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "jobs_retrieve", {"id": job_id}
+    )
+
+
+@tool("Get Job Output")
+def get_job_output(job_id: str) -> str:
+    """Get the stdout output of a completed job. Use this to see what happened."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "jobs_stdout_retrieve", {"id": job_id}
+    )
+
+
+@tool("List Recent Jobs")
+def get_recent_jobs() -> str:
+    """Get the most recent AAP jobs with their status.
+    Useful for checking what ran recently and whether anything failed."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "jobs_list", {"page_size": 10, "order_by": "-finished"}
+    )
 
 
 @tool("List Hosts")
 def list_hosts() -> str:
     """List all hosts registered in AAP inventories.
     Shows host names and which inventory they belong to."""
-    result = aap.get("/api/controller/v2/hosts/", params={"page_size": 50})
-    hosts = [
-        {
-            "id": h["id"],
-            "name": h["name"],
-            "inventory": h.get("summary_fields", {}).get("inventory", {}).get("name", ""),
-        }
-        for h in result.get("results", [])
-    ]
-    return json.dumps(hosts, indent=2)
+    return mcp_toolkit.call_tool_sync(
+        "inventory_management", "hosts_list", {"page_size": 50}
+    )
+
+
+@tool("List Inventories")
+def list_inventories() -> str:
+    """List all inventories in AAP."""
+    return mcp_toolkit.call_tool_sync(
+        "inventory_management", "inventories_list", {}
+    )
 
 
 # ---------------------------------------------------------------------------
 # Agent definitions
 # ---------------------------------------------------------------------------
-all_tools = [list_all_job_templates, launch_job_template, get_recent_jobs, list_hosts]
+all_tools = [
+    list_all_job_templates, get_job_template_details, launch_job_template,
+    get_job_status, get_job_output, get_recent_jobs, list_hosts, list_inventories,
+]
 
 triage_agent = Agent(
     role="Incident Triage Specialist",
@@ -248,7 +239,8 @@ executor_agent = Agent(
         "diagnostic templates first, then remediation templates, then verification "
         "templates. You carefully read job output to understand what happened. "
         "If the triage specialist determined that no suitable automation exists, "
-        "you acknowledge this and do not attempt to run unrelated templates."
+        "you acknowledge this and do not attempt to run unrelated templates. "
+        "After launching a job, always check its status before reading output."
     ),
     tools=all_tools,
     verbose=True,
@@ -293,15 +285,15 @@ def build_tasks(problem_description):
             f"   - If relevant templates exist: list them in order (diagnose, fix, verify)\n"
             f"   - If NO relevant templates exist: clearly state that no suitable "
             f"     automation was found and explain why\n\n"
-            f"Be specific about template names. Do not suggest templates that are "
+            f"Be specific about template names and IDs. Do not suggest templates that are "
             f"unrelated to the reported problem."
         ),
         expected_output=(
             "A triage report containing:\n"
             "- Problem understanding\n"
-            "- Available AAP automation (full template list)\n"
+            "- Available AAP automation (full template list with IDs)\n"
             "- Target host verification\n"
-            "- Action plan with specific template names, OR a clear statement "
+            "- Action plan with specific template names and IDs, OR a clear statement "
             "that no suitable automation exists"
         ),
         agent=triage_agent,
@@ -311,9 +303,13 @@ def build_tasks(problem_description):
         description=(
             "Execute the action plan from the triage report.\n\n"
             "If relevant templates were identified:\n"
-            "1. Run diagnostic template(s) first to confirm the problem\n"
-            "2. Run remediation template(s) to fix the problem\n"
-            "3. Run verification template(s) to confirm the fix\n\n"
+            "1. Launch diagnostic template(s) first using the template ID\n"
+            "2. After launching, poll the job status until it completes\n"
+            "3. Read the job output to confirm the problem\n"
+            "4. Launch remediation template(s) to fix the problem\n"
+            "5. Poll status and read output\n"
+            "6. Launch verification template(s) to confirm the fix\n"
+            "7. Poll status and read output\n\n"
             "If no relevant templates were found:\n"
             "- Do NOT run unrelated templates\n"
             "- Acknowledge that automated remediation is not possible\n"
@@ -321,7 +317,7 @@ def build_tasks(problem_description):
         ),
         expected_output=(
             "An execution log showing:\n"
-            "- Which templates were run and their results, OR\n"
+            "- Which templates were launched (by ID) and their results, OR\n"
             "- A statement that no automation was executed because no suitable "
             "templates exist"
         ),
@@ -357,11 +353,44 @@ def build_tasks(problem_description):
 
 
 # ---------------------------------------------------------------------------
+# Break helper (direct API for simulating incident only)
+# ---------------------------------------------------------------------------
+def break_apache():
+    """Use direct API to break Apache -- only used for demo setup."""
+    import requests
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    s = requests.Session()
+    s.verify = False
+    s.auth = (AAP_USERNAME, AAP_PASSWORD)
+    s.headers["Content-Type"] = "application/json"
+
+    r = s.get(
+        f"{AAP_BASE_URL}/api/controller/v2/job_templates/",
+        params={"search": "Break Apache"}
+    )
+    r.raise_for_status()
+    for t in r.json().get("results", []):
+        if t["name"] == "Break Apache":
+            job = s.post(
+                f"{AAP_BASE_URL}/api/controller/v2/job_templates/{t['id']}/launch/"
+            ).json()
+            end = time.time() + 120
+            while time.time() < end:
+                j = s.get(f"{AAP_BASE_URL}/api/controller/v2/jobs/{job['id']}/").json()
+                if j["status"] in ("successful", "failed", "error", "canceled"):
+                    return j["status"]
+                time.sleep(5)
+            return "timeout"
+    return "template_not_found"
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
-        description="Agentic AIOps: AI-driven incident response using AAP"
+        description="Agentic AIOps: AI-driven incident response using AAP via MCP"
     )
     parser.add_argument(
         "problem",
@@ -382,16 +411,18 @@ def main():
     print(f"\n{'='*60}")
     print("AGENTIC AIOPS INCIDENT RESPONSE")
     print(f"{'='*60}")
+    print(f"LLM:   {LLM_MODEL} via proxy at {LLM_BASE_URL}")
+    print(f"Tools: AAP MCP server at {MCP_BASE_URL}")
 
     if args.break_first:
         print(f"\nSimulating incident...")
-        t = aap.find_template("Break Apache")
-        if t:
-            job = aap.launch_template(t["id"])
-            aap.wait_for_job(job["id"])
+        status = break_apache()
+        if status == "successful":
             print("Done. Apache is now broken.\n")
-        else:
+        elif status == "template_not_found":
             print("WARNING: 'Break Apache' template not found.\n")
+        else:
+            print(f"WARNING: Break job ended with status: {status}\n")
 
     print(f"\nProblem: {args.problem}")
     print(f"{'='*60}\n")
@@ -399,6 +430,12 @@ def main():
     # Configure CrewAI to use our LLM proxy
     os.environ["ANTHROPIC_API_KEY"] = LLM_API_KEY
     os.environ["ANTHROPIC_BASE_URL"] = LLM_BASE_URL
+
+    # Create an event loop for MCP async calls
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
     tasks = build_tasks(args.problem)
 

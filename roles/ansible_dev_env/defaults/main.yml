@@ -12,6 +12,7 @@ ansible_dev_env_crewai_enabled: false
 ansible_dev_env_crewai_pip_packages:
   - crewai
   - crewai-tools
+  - mcp
 
 # Execution environment for ansible-navigator
 ansible_dev_env_ee_image: "quay.io/agnosticd/ee-ubi9-aap2.5:2.1.0"
