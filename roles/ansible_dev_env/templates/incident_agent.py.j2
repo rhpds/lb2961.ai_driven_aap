@@ -4,28 +4,14 @@ Agentic AIOps Incident Response
 ================================
 A CrewAI multi-agent workflow that uses Ansible Automation Platform
 as its trusted execution layer via MCP (Model Context Protocol).
-The agents are problem-agnostic -- they discover available AAP
-automation dynamically through MCP tools and reason about whether
-existing job templates can solve the reported problem.
 
-Architecture:
-  Triage Agent    -> understands the problem, discovers available AAP automation
-  Executor Agent  -> runs selected job templates, interprets results
-  Reporter Agent  -> produces incident report with findings and recommendations
+Run one agent at a time for step-by-step exercises, or all at once:
 
-The agents do NOT run commands directly. They interact exclusively
-through AAP via MCP tools -- AI decides WHAT to do, Ansible handles
-HOW to do it safely and at scale.
-
-Infrastructure:
-  LLM:   Claude via Anthropic proxy (localhost:{{ ai_client_proxy_port | default('8443') }})
-  Tools:  AAP MCP server (localhost:{{ mcp_server_port | default('8448') }})
-
-Usage:
-  python3 incident_agent.py "Apache is down on node1"
-  python3 incident_agent.py "Check if crond is running on node1"
-  python3 incident_agent.py "PostgreSQL database is down on node1"
-  python3 incident_agent.py --break-first "Apache is down on node1"
+  python3 incident_agent.py triage "Apache is down on node1"
+  python3 incident_agent.py execute "Apache is down on node1"
+  python3 incident_agent.py report "Apache is down on node1"
+  python3 incident_agent.py all "Apache is down on node1"
+  python3 incident_agent.py all --break-first "Apache is down on node1"
 """
 
 import argparse
@@ -39,7 +25,7 @@ try:
     from crewai import Agent, Crew, Task, Process
     from crewai.tools import tool
 except ImportError:
-    print("CrewAI is not installed. Run: pip install crewai crewai-tools")
+    print("CrewAI is not installed. Run: pip install 'crewai[anthropic]' crewai-tools")
     sys.exit(1)
 
 try:
@@ -50,7 +36,7 @@ except ImportError:
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
-# Configuration from environment (set by ansible_dev_env role)
+# Configuration from environment
 # ---------------------------------------------------------------------------
 MCP_BASE_URL = os.environ.get(
     "MCP_BASE_URL",
@@ -60,7 +46,7 @@ MCP_TOKEN = os.environ.get("MCP_TOKEN", "{{ ai_client_mcp_token | default('') }}
 
 LLM_BASE_URL = os.environ.get(
     "ANTHROPIC_BASE_URL",
-    "http://127.0.0.1:{{ ai_client_proxy_port | default('8443') }}"
+    "http://127.0.0.1:{{ ai_client_proxy_port | default('4010') }}"
 )
 LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
@@ -75,7 +61,7 @@ AAP_PASSWORD = os.environ.get("AAP_PASSWORD", "{{ common_password }}")
 
 
 # ---------------------------------------------------------------------------
-# MCP Client: discover and call AAP tools via MCP server
+# MCP Client
 # ---------------------------------------------------------------------------
 class MCPToolkit:
     """Connects to the AAP MCP server and exposes tools for CrewAI."""
@@ -83,38 +69,17 @@ class MCPToolkit:
     def __init__(self, base_url, token):
         self.base_url = base_url.rstrip("/")
         self.token = token
-        self._tools_cache = {}
 
     async def _call_mcp_tool(self, toolset, tool_name, arguments=None):
-        """Call a single MCP tool on the given toolset endpoint."""
         url = f"{self.base_url}/mcp/{toolset}"
-        headers = {}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-
+        headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
         async with streamablehttp_client(url, headers=headers) as (r, w, _):
             async with ClientSession(r, w) as session:
                 await session.initialize()
                 result = await session.call_tool(tool_name, arguments or {})
-                # MCP returns content as a list of content blocks
-                texts = []
-                for block in result.content:
-                    if hasattr(block, "text"):
-                        texts.append(block.text)
-                return "\n".join(texts)
-
-    async def discover_tools(self, toolset):
-        """List available tools from an MCP toolset endpoint."""
-        url = f"{self.base_url}/mcp/{toolset}"
-        headers = {}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-
-        async with streamablehttp_client(url, headers=headers) as (r, w, _):
-            async with ClientSession(r, w) as session:
-                await session.initialize()
-                tools = await session.list_tools()
-                return tools.tools
+                return "\n".join(
+                    b.text for b in result.content if hasattr(b, "text")
+                )
 
     def call_tool_sync(self, toolset, tool_name, arguments=None):
         """Synchronous wrapper for calling MCP tools (thread-safe)."""
@@ -140,8 +105,7 @@ def list_all_job_templates() -> str:
 
 @tool("Get Job Template Details")
 def get_job_template_details(template_id: str) -> str:
-    """Get detailed information about a specific job template by its ID.
-    Use this to understand what a template does before launching it."""
+    """Get detailed information about a specific job template by its ID."""
     return mcp_toolkit.call_tool_sync(
         "job_management", "job_templates_retrieve", {"id": template_id}
     )
@@ -149,8 +113,7 @@ def get_job_template_details(template_id: str) -> str:
 
 @tool("Launch Job Template")
 def launch_job_template(template_id: str) -> str:
-    """Launch an AAP job template by its ID and return the launched job info.
-    Use this to run automation. You must poll the job status separately."""
+    """Launch an AAP job template by its ID. Poll job status separately after."""
     return mcp_toolkit.call_tool_sync(
         "job_management", "job_templates_launch_create", {"id": template_id}
     )
@@ -158,8 +121,7 @@ def launch_job_template(template_id: str) -> str:
 
 @tool("Get Job Status")
 def get_job_status(job_id: str) -> str:
-    """Check the status of a running or completed job by its ID.
-    Status values: pending, waiting, running, successful, failed, error, canceled."""
+    """Check the status of a job by its ID (pending/running/successful/failed)."""
     return mcp_toolkit.call_tool_sync(
         "job_management", "jobs_retrieve", {"id": job_id}
     )
@@ -167,7 +129,7 @@ def get_job_status(job_id: str) -> str:
 
 @tool("Get Job Output")
 def get_job_output(job_id: str) -> str:
-    """Get the stdout output of a completed job. Use this to see what happened."""
+    """Get the stdout output of a completed job."""
     return mcp_toolkit.call_tool_sync(
         "job_management", "jobs_stdout_retrieve", {"id": job_id}
     )
@@ -175,8 +137,7 @@ def get_job_output(job_id: str) -> str:
 
 @tool("List Recent Jobs")
 def get_recent_jobs() -> str:
-    """Get the most recent AAP jobs with their status.
-    Useful for checking what ran recently and whether anything failed."""
+    """Get the most recent AAP jobs with their status."""
     return mcp_toolkit.call_tool_sync(
         "job_management", "jobs_list", {"page_size": 10, "order_by": "-finished"}
     )
@@ -184,8 +145,7 @@ def get_recent_jobs() -> str:
 
 @tool("List Hosts")
 def list_hosts() -> str:
-    """List all hosts registered in AAP inventories.
-    Shows host names and which inventory they belong to."""
+    """List all hosts registered in AAP inventories."""
     return mcp_toolkit.call_tool_sync(
         "inventory_management", "hosts_list", {"page_size": 50}
     )
@@ -207,149 +167,171 @@ all_tools = [
     get_job_status, get_job_output, get_recent_jobs, list_hosts, list_inventories,
 ]
 
-triage_agent = Agent(
-    role="Incident Triage Specialist",
-    goal=(
-        "Understand the reported problem, discover what AAP automation is available, "
-        "and create an action plan. Determine if existing job templates can address "
-        "the problem or if no suitable automation exists."
-    ),
-    backstory=(
-        "You are an expert at triaging infrastructure incidents. Your first step is "
-        "always to discover what automation is available in AAP by listing all job "
-        "templates. You then assess whether any of them are relevant to the reported "
-        "problem. You check host inventory to confirm the target exists. You are "
-        "honest when no suitable automation is available -- you never try to force "
-        "an unrelated template to solve a problem it was not designed for."
-    ),
-    tools=all_tools,
-    verbose=True,
-    llm=f"anthropic/{LLM_MODEL}",
-)
 
-executor_agent = Agent(
-    role="Automation Executor",
-    goal=(
-        "Execute the action plan by launching the selected AAP job templates "
-        "in the correct order. Interpret the results of each job."
-    ),
-    backstory=(
-        "You are a disciplined automation operator. You only run job templates "
-        "that the triage specialist has identified as relevant. You launch "
-        "diagnostic templates first, then remediation templates, then verification "
-        "templates. You carefully read job output to understand what happened. "
-        "If the triage specialist determined that no suitable automation exists, "
-        "you acknowledge this and do not attempt to run unrelated templates. "
-        "After launching a job, always check its status before reading output."
-    ),
-    tools=all_tools,
-    verbose=True,
-    llm=f"anthropic/{LLM_MODEL}",
-)
+def make_triage_agent():
+    return Agent(
+        role="Incident Triage Specialist",
+        goal=(
+            "Understand the reported problem, discover what AAP automation is "
+            "available, and create a short action plan."
+        ),
+        backstory=(
+            "You are an expert at triaging infrastructure incidents. You always "
+            "start by listing all AAP job templates to discover available automation. "
+            "You check host inventory to confirm targets exist. You are honest when "
+            "no suitable automation is available."
+        ),
+        tools=all_tools,
+        verbose=True,
+        llm=f"anthropic/{LLM_MODEL}",
+    )
 
-reporter_agent = Agent(
-    role="Incident Reporter",
-    goal=(
-        "Produce a clear, actionable incident report summarizing what was found, "
-        "what was done, and what the outcome was."
-    ),
-    backstory=(
-        "You are a technical writer who creates concise incident reports. "
-        "Your reports always include: problem summary, available automation, "
-        "actions taken (or why no action was possible), results, and "
-        "recommendations. When no automation was available, you recommend "
-        "what Ansible playbooks and job templates should be created."
-    ),
-    tools=[],
-    verbose=True,
-    llm=f"anthropic/{LLM_MODEL}",
-)
+
+def make_executor_agent():
+    return Agent(
+        role="Automation Executor",
+        goal=(
+            "Execute the triage action plan by launching AAP job templates "
+            "in order: diagnose, fix, verify. Report results concisely."
+        ),
+        backstory=(
+            "You are a disciplined automation operator. You only run templates "
+            "identified as relevant. After launching a job, check its status "
+            "before reading output. If no suitable templates exist, do not run "
+            "unrelated ones."
+        ),
+        tools=all_tools,
+        verbose=True,
+        llm=f"anthropic/{LLM_MODEL}",
+    )
+
+
+def make_reporter_agent():
+    return Agent(
+        role="Incident Reporter",
+        goal="Produce a short, clear incident summary.",
+        backstory=(
+            "You write concise incident summaries. Keep it under 20 lines. "
+            "Include: what happened, what was done, outcome, and one key "
+            "recommendation. No lengthy tables or detailed playbook outlines."
+        ),
+        tools=[],
+        verbose=True,
+        llm=f"anthropic/{LLM_MODEL}",
+    )
 
 
 # ---------------------------------------------------------------------------
 # Task definitions
 # ---------------------------------------------------------------------------
-def build_tasks(problem_description):
-    """Build the task pipeline for any given problem."""
-
-    triage = Task(
+def build_triage_task(problem, agent):
+    return Task(
         description=(
-            f"A problem has been reported:\n\n"
-            f"  \"{problem_description}\"\n\n"
-            f"Your job:\n"
-            f"1. List ALL available job templates in AAP to see what automation exists\n"
-            f"2. List all hosts to confirm the target infrastructure exists\n"
-            f"3. Check recent job history for related failures\n"
-            f"4. Assess which templates (if any) are relevant to this problem\n"
-            f"5. Create an action plan:\n"
-            f"   - If relevant templates exist: list them in order (diagnose, fix, verify)\n"
-            f"   - If NO relevant templates exist: clearly state that no suitable "
-            f"     automation was found and explain why\n\n"
-            f"Be specific about template names and IDs. Do not suggest templates that are "
-            f"unrelated to the reported problem."
+            f"Problem reported: \"{problem}\"\n\n"
+            f"Steps:\n"
+            f"1. List all job templates in AAP\n"
+            f"2. List hosts to confirm the target exists\n"
+            f"3. Check recent jobs for related activity\n"
+            f"4. Create a short action plan (which templates to run and in what order)\n\n"
+            f"If no relevant templates exist, say so clearly."
         ),
         expected_output=(
-            "A triage report containing:\n"
-            "- Problem understanding\n"
-            "- Available AAP automation (full template list with IDs)\n"
-            "- Target host verification\n"
-            "- Action plan with specific template names and IDs, OR a clear statement "
-            "that no suitable automation exists"
+            "A short triage summary (under 15 lines) with:\n"
+            "- Problem understood\n"
+            "- Relevant templates found (name + ID) or 'none found'\n"
+            "- Host confirmed or not\n"
+            "- Action plan: ordered list of templates to run"
         ),
-        agent=triage_agent,
+        agent=agent,
     )
 
-    execute = Task(
+
+def build_execute_task(problem, agent, triage_task):
+    return Task(
         description=(
-            "Execute the action plan from the triage report.\n\n"
-            "If relevant templates were identified:\n"
-            "1. Launch diagnostic template(s) first using the template ID\n"
-            "2. After launching, poll the job status until it completes\n"
-            "3. Read the job output to confirm the problem\n"
-            "4. Launch remediation template(s) to fix the problem\n"
-            "5. Poll status and read output\n"
-            "6. Launch verification template(s) to confirm the fix\n"
-            "7. Poll status and read output\n\n"
-            "If no relevant templates were found:\n"
-            "- Do NOT run unrelated templates\n"
-            "- Acknowledge that automated remediation is not possible\n"
-            "- Note what the output would look like if automation existed"
+            "Execute the action plan from triage.\n\n"
+            "For each relevant template:\n"
+            "1. Launch it by ID\n"
+            "2. Poll job status until complete\n"
+            "3. Read job output\n"
+            "4. Summarize what happened in 2-3 lines\n\n"
+            "If no templates were relevant, state that no action was taken."
         ),
         expected_output=(
-            "An execution log showing:\n"
-            "- Which templates were launched (by ID) and their results, OR\n"
-            "- A statement that no automation was executed because no suitable "
-            "templates exist"
+            "A short execution log (under 15 lines) showing:\n"
+            "- Each template launched, job ID, status (success/failed)\n"
+            "- Brief result summary per job\n"
+            "- Overall outcome"
         ),
-        agent=executor_agent,
-        context=[triage],
+        agent=agent,
+        context=[triage_task],
     )
 
-    report = Task(
+
+def build_report_task(problem, agent, context_tasks):
+    return Task(
         description=(
-            "Create a final incident report based on the triage and execution results.\n\n"
-            "The report must include these sections:\n"
-            "1. INCIDENT SUMMARY: What problem was reported\n"
-            "2. AVAILABLE AUTOMATION: What AAP templates were found\n"
-            "3. ACTIONS TAKEN: What was executed and the results\n"
-            "4. OUTCOME: Was the problem resolved?\n"
-            "5. RECOMMENDATIONS:\n"
-            "   - If resolved: how to prevent recurrence\n"
-            "   - If NOT resolved: what Ansible playbooks and AAP job templates "
-            "     should be created to handle this type of problem in the future. "
-            "     Be specific about playbook names, modules to use, and template "
-            "     configuration."
+            "Write a concise incident summary based on triage and execution.\n\n"
+            "Format (keep under 20 lines total):\n"
+            "PROBLEM: one line\n"
+            "TRIAGE: what was found (2-3 lines)\n"
+            "ACTIONS: what was run and results (3-5 lines)\n"
+            "OUTCOME: resolved / not resolved (one line)\n"
+            "RECOMMENDATION: one actionable suggestion"
         ),
         expected_output=(
-            "A formatted incident report with all 5 sections. "
-            "For unresolved incidents, the RECOMMENDATIONS section should include "
-            "specific Ansible module suggestions and playbook outlines."
+            "A concise incident summary under 20 lines covering: "
+            "problem, triage findings, actions taken, outcome, recommendation."
         ),
-        agent=reporter_agent,
-        context=[triage, execute],
+        agent=agent,
+        context=context_tasks,
     )
 
-    return [triage, execute, report]
+
+# ---------------------------------------------------------------------------
+# Step runners
+# ---------------------------------------------------------------------------
+def run_triage(problem):
+    agent = make_triage_agent()
+    task = build_triage_task(problem, agent)
+    crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=True)
+    return crew.kickoff()
+
+
+def run_execute(problem):
+    triage_agent = make_triage_agent()
+    executor_agent = make_executor_agent()
+    triage_task = build_triage_task(problem, triage_agent)
+    execute_task = build_execute_task(problem, executor_agent, triage_task)
+    crew = Crew(
+        agents=[triage_agent, executor_agent],
+        tasks=[triage_task, execute_task],
+        process=Process.sequential, verbose=True,
+    )
+    return crew.kickoff()
+
+
+def run_report(problem):
+    triage_agent = make_triage_agent()
+    executor_agent = make_executor_agent()
+    reporter_agent = make_reporter_agent()
+    triage_task = build_triage_task(problem, triage_agent)
+    execute_task = build_execute_task(problem, executor_agent, triage_task)
+    report_task = build_report_task(problem, reporter_agent, [triage_task, execute_task])
+    crew = Crew(
+        agents=[triage_agent, executor_agent, reporter_agent],
+        tasks=[triage_task, execute_task, report_task],
+        process=Process.sequential, verbose=True,
+    )
+    return crew.kickoff()
+
+
+STEPS = {
+    "triage": run_triage,
+    "execute": run_execute,
+    "report": run_report,
+    "all": run_report,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +375,11 @@ def main():
         description="Agentic AIOps: AI-driven incident response using AAP via MCP"
     )
     parser.add_argument(
+        "step",
+        choices=["triage", "execute", "report", "all"],
+        help="Which agent(s) to run: triage, execute (triage+execute), report (all three), or all"
+    )
+    parser.add_argument(
         "problem",
         nargs="?",
         default="Apache web server is down on node1",
@@ -409,7 +396,7 @@ def main():
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     print(f"\n{'='*60}")
-    print("AGENTIC AIOPS INCIDENT RESPONSE")
+    print(f"AGENTIC AIOPS - {args.step.upper()}")
     print(f"{'='*60}")
     print(f"LLM:   {LLM_MODEL} via proxy at {LLM_BASE_URL}")
     print(f"Tools: AAP MCP server at {MCP_BASE_URL}")
@@ -431,19 +418,11 @@ def main():
     os.environ["ANTHROPIC_API_KEY"] = LLM_API_KEY
     os.environ["ANTHROPIC_BASE_URL"] = LLM_BASE_URL
 
-    tasks = build_tasks(args.problem)
-
-    crew = Crew(
-        agents=[triage_agent, executor_agent, reporter_agent],
-        tasks=tasks,
-        process=Process.sequential,
-        verbose=True,
-    )
-
-    result = crew.kickoff()
+    runner = STEPS[args.step]
+    result = runner(args.problem)
 
     print(f"\n{'='*60}")
-    print("FINAL REPORT")
+    print("RESULT")
     print(f"{'='*60}\n")
     print(result)
 
