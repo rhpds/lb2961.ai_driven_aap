@@ -18,3 +18,12 @@
     dest: "/home/{{ student_name }}/agentic-aiops/incident_agent.py"
     owner: "{{ student_name }}"
     mode: "0755"
+
+- name: Set CrewAI MCP environment in .bashrc
+  ansible.builtin.blockinfile:
+    path: "/home/{{ student_name }}/.bashrc"
+    marker: "# {mark} CREWAI MCP ENV"
+    block: |
+      export MCP_BASE_URL="http://localhost:{{ ai_client_mcp_port | default('8448') }}"
+      export MCP_TOKEN="{{ ai_client_mcp_token | default('') }}"
+    owner: "{{ student_name }}"
