@@ -302,6 +302,12 @@ def build_report_task(problem, agent, context_tasks):
 # ---------------------------------------------------------------------------
 # Step runners
 # ---------------------------------------------------------------------------
+def print_stage(label, result):
+    print(f"\n--- {label} ---")
+    print(result)
+    print()
+
+
 def run_triage(problem):
     agent = make_triage_agent()
     task = build_triage_task(problem, agent)
@@ -311,30 +317,39 @@ def run_triage(problem):
 
 def run_execute(problem):
     triage_agent = make_triage_agent()
-    executor_agent = make_executor_agent()
     triage_task = build_triage_task(problem, triage_agent)
+    triage_crew = Crew(agents=[triage_agent], tasks=[triage_task],
+                       process=Process.sequential, verbose=VERBOSE)
+    triage_result = triage_crew.kickoff()
+    print_stage("TRIAGE", triage_result)
+
+    executor_agent = make_executor_agent()
     execute_task = build_execute_task(problem, executor_agent, triage_task)
-    crew = Crew(
-        agents=[triage_agent, executor_agent],
-        tasks=[triage_task, execute_task],
-        process=Process.sequential, verbose=VERBOSE,
-    )
-    return crew.kickoff()
+    execute_crew = Crew(agents=[executor_agent], tasks=[execute_task],
+                        process=Process.sequential, verbose=VERBOSE)
+    return execute_crew.kickoff()
 
 
 def run_report(problem):
     triage_agent = make_triage_agent()
-    executor_agent = make_executor_agent()
-    reporter_agent = make_reporter_agent()
     triage_task = build_triage_task(problem, triage_agent)
+    triage_crew = Crew(agents=[triage_agent], tasks=[triage_task],
+                       process=Process.sequential, verbose=VERBOSE)
+    triage_result = triage_crew.kickoff()
+    print_stage("TRIAGE", triage_result)
+
+    executor_agent = make_executor_agent()
     execute_task = build_execute_task(problem, executor_agent, triage_task)
+    execute_crew = Crew(agents=[executor_agent], tasks=[execute_task],
+                        process=Process.sequential, verbose=VERBOSE)
+    execute_result = execute_crew.kickoff()
+    print_stage("EXECUTION", execute_result)
+
+    reporter_agent = make_reporter_agent()
     report_task = build_report_task(problem, reporter_agent, [triage_task, execute_task])
-    crew = Crew(
-        agents=[triage_agent, executor_agent, reporter_agent],
-        tasks=[triage_task, execute_task, report_task],
-        process=Process.sequential, verbose=VERBOSE,
-    )
-    return crew.kickoff()
+    report_crew = Crew(agents=[reporter_agent], tasks=[report_task],
+                       process=Process.sequential, verbose=VERBOSE)
+    return report_crew.kickoff()
 
 
 STEPS = {
