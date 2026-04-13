@@ -46,13 +46,10 @@ MCP_BASE_URL = os.environ.get(
 MCP_TOKEN = os.environ.get("MCP_TOKEN", "{{ ai_client_mcp_token | default('') }}")
 
 LLM_BASE_URL = os.environ.get(
-    "OPENAI_API_BASE",
-    "{{ ai_client_proxy_upstream_url | default('http://127.0.0.1:4010') }}"
+    "ANTHROPIC_BASE_URL",
+    "http://127.0.0.1:{{ ai_client_proxy_port | default('4010') }}"
 )
-LLM_API_KEY = os.environ.get(
-    "OPENAI_API_KEY",
-    "{{ ai_client_proxy_upstream_api_key | default('') }}"
-)
+LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
 
 # AAP credentials for --break-first only (direct API call)
@@ -191,7 +188,7 @@ def make_triage_agent():
         ),
         tools=all_tools,
         verbose=VERBOSE,
-        llm=f"openai/{LLM_MODEL}",
+        llm=f"anthropic/{LLM_MODEL}",
     )
 
 
@@ -211,7 +208,7 @@ def make_executor_agent():
         ),
         tools=all_tools,
         verbose=VERBOSE,
-        llm=f"openai/{LLM_MODEL}",
+        llm=f"anthropic/{LLM_MODEL}",
     )
 
 
@@ -227,7 +224,7 @@ def make_reporter_agent():
         ),
         tools=[],
         verbose=VERBOSE,
-        llm=f"openai/{LLM_MODEL}",
+        llm=f"anthropic/{LLM_MODEL}",
     )
 
 
@@ -435,9 +432,9 @@ def main():
     print(f"\nProblem: {args.problem}")
     print(f"{'='*60}\n")
 
-    # Configure CrewAI to use LiteLLM via OpenAI-compatible endpoint
-    os.environ["OPENAI_API_KEY"] = LLM_API_KEY
-    os.environ["OPENAI_API_BASE"] = LLM_BASE_URL
+    # Configure CrewAI to use our LLM proxy
+    os.environ["ANTHROPIC_API_KEY"] = LLM_API_KEY
+    os.environ["ANTHROPIC_BASE_URL"] = LLM_BASE_URL
 
     runner = STEPS[args.step]
     result = runner(args.problem)

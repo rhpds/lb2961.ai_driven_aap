@@ -32,6 +32,4 @@
     block: |
       export MCP_BASE_URL="http://localhost:{{ ai_client_mcp_port | default('8448') }}"
       export MCP_TOKEN="{{ ai_client_mcp_token | default('') }}"
-      export OPENAI_API_BASE="{{ ai_client_proxy_upstream_url }}"
-      export OPENAI_API_KEY="{{ ai_client_proxy_upstream_api_key }}"
     owner: "{{ student_name }}"

@@ -48,6 +48,17 @@ async def anthropic_proxy(request):
 
     body = await request.read()
 
+    # Strip assistant message prefill (upstream Vertex AI rejects it)
+    if body and path.rstrip("/").endswith("/messages"):
+        try:
+            data = json.loads(body)
+            msgs = data.get("messages", [])
+            if msgs and msgs[-1].get("role") == "assistant":
+                msgs.pop()
+                body = json.dumps(data).encode()
+        except (json.JSONDecodeError, KeyError):
+            pass
+
     async with ClientSession(connector=TCPConnector(ssl=False)) as s:
         async with s.request(request.method, url, headers=headers, data=body) as resp:
             out = web.StreamResponse(status=resp.status)
