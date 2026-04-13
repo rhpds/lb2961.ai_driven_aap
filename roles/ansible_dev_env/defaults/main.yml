@@ -12,6 +12,7 @@ ansible_dev_env_crewai_enabled: false
 ansible_dev_env_crewai_pip_packages:
   - "crewai[anthropic]"
   - crewai-tools
+  - litellm
   - mcp
   - pysqlite3-binary
 
