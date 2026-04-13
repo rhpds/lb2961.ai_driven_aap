@@ -14,3 +14,7 @@
 
 - name: Configure ansible-navigator, ansible.cfg, and inventory
   ansible.builtin.include_tasks: navigator.yml
+
+- name: Install CrewAI agent packages
+  when: ansible_dev_env_crewai_enabled | bool
+  ansible.builtin.include_tasks: crewai.yml

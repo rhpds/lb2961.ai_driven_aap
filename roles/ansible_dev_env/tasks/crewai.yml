@@ -1,0 +1,20 @@
+---
+- name: Install CrewAI packages in venv
+  become_user: "{{ student_name }}"
+  ansible.builtin.pip:
+    name: "{{ ansible_dev_env_crewai_pip_packages }}"
+    virtualenv: "{{ ansible_dev_env_venv_path }}"
+
+- name: Create CrewAI agent directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/agentic-aiops"
+    state: directory
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Deploy incident agent script
+  ansible.builtin.template:
+    src: incident_agent.py.j2
+    dest: "/home/{{ student_name }}/agentic-aiops/incident_agent.py"
+    owner: "{{ student_name }}"
+    mode: "0755"

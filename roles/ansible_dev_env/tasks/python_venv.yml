@@ -28,4 +28,3 @@
         source {{ ansible_dev_env_venv_path }}/bin/activate
       fi
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"

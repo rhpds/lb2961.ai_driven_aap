@@ -7,6 +7,12 @@ ansible_dev_env_venv_path: "/home/{{ student_name }}/.venv"
 ansible_dev_env_pip_packages:
   - ansible-dev-tools
 
+# CrewAI agent support (disabled by default)
+ansible_dev_env_crewai_enabled: false
+ansible_dev_env_crewai_pip_packages:
+  - crewai
+  - crewai-tools
+
 # Execution environment for ansible-navigator
 ansible_dev_env_ee_image: "quay.io/agnosticd/ee-ubi9-aap2.5:2.1.0"
 ansible_dev_env_ee_pull_policy: missing

@@ -1,0 +1,421 @@
+#!/usr/bin/env python3
+"""
+Agentic AIOps Incident Response
+================================
+A CrewAI multi-agent workflow that uses Ansible Automation Platform
+as its trusted execution layer. The agents are problem-agnostic --
+they discover available AAP automation dynamically and reason about
+whether existing job templates can solve the reported problem.
+
+Architecture:
+  Triage Agent    -> understands the problem, discovers available AAP automation
+  Executor Agent  -> runs selected job templates, interprets results
+  Reporter Agent  -> produces incident report with findings and recommendations
+
+The agents do NOT run commands directly. They interact exclusively
+through AAP job templates -- AI decides WHAT to do, Ansible handles
+HOW to do it safely and at scale.
+
+Usage:
+  python3 incident_agent.py "Apache is down on node1"
+  python3 incident_agent.py "Check if crond is running on node1"
+  python3 incident_agent.py "PostgreSQL database is down on node1"
+  python3 incident_agent.py --break-first "Apache is down on node1"
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+
+try:
+    from crewai import Agent, Crew, Task, Process
+    from crewai.tools import tool
+except ImportError:
+    print("CrewAI is not installed. Run: pip install crewai crewai-tools")
+    sys.exit(1)
+
+try:
+    import requests
+except ImportError:
+    print("requests is not installed. Run: pip install requests")
+    sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# Configuration from environment (set by ansible_dev_env role)
+# ---------------------------------------------------------------------------
+AAP_BASE_URL = os.environ.get(
+    "AAP_BASE_URL",
+    "{{ ansible_automation_platform_configuration_host }}"
+)
+AAP_USERNAME = os.environ.get("AAP_USERNAME", "{{ student_name }}")
+AAP_PASSWORD = os.environ.get("AAP_PASSWORD", "{{ common_password }}")
+LLM_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "http://127.0.0.1:{{ ai_client_proxy_port | default('8443') }}")
+LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+
+
+# ---------------------------------------------------------------------------
+# AAP API helper
+# ---------------------------------------------------------------------------
+class AAPClient:
+    """Minimal AAP Gateway API client."""
+
+    def __init__(self, base_url, username, password):
+        self.base_url = base_url.rstrip("/")
+        self.session = requests.Session()
+        self.session.verify = False
+        self.session.auth = (username, password)
+        self.session.headers["Content-Type"] = "application/json"
+
+    def get(self, path, **kwargs):
+        r = self.session.get(f"{self.base_url}{path}", **kwargs)
+        r.raise_for_status()
+        return r.json()
+
+    def post(self, path, data=None, **kwargs):
+        r = self.session.post(f"{self.base_url}{path}", json=data, **kwargs)
+        r.raise_for_status()
+        return r.json()
+
+    def find_template(self, name):
+        """Find a job template by exact name."""
+        result = self.get(
+            "/api/controller/v2/job_templates/",
+            params={"search": name}
+        )
+        for t in result.get("results", []):
+            if t["name"] == name:
+                return t
+        return None
+
+    def launch_template(self, template_id, extra_vars=None):
+        """Launch a job template and return the job object."""
+        data = {}
+        if extra_vars:
+            data["extra_vars"] = json.dumps(extra_vars)
+        return self.post(
+            f"/api/controller/v2/job_templates/{template_id}/launch/",
+            data=data
+        )
+
+    def wait_for_job(self, job_id, timeout=120, poll=5):
+        """Poll until job completes. Returns final job object."""
+        end = time.time() + timeout
+        while time.time() < end:
+            job = self.get(f"/api/controller/v2/jobs/{job_id}/")
+            if job["status"] in ("successful", "failed", "error", "canceled"):
+                return job
+            time.sleep(poll)
+        raise TimeoutError(f"Job {job_id} did not complete in {timeout}s")
+
+    def get_job_stdout(self, job_id):
+        """Get plain-text stdout of a completed job."""
+        r = self.session.get(
+            f"{self.base_url}/api/controller/v2/jobs/{job_id}/stdout/",
+            params={"format": "txt"}
+        )
+        r.raise_for_status()
+        return r.text
+
+
+aap = AAPClient(AAP_BASE_URL, AAP_USERNAME, AAP_PASSWORD)
+
+
+# ---------------------------------------------------------------------------
+# CrewAI Tools -- wrappers around AAP operations
+# ---------------------------------------------------------------------------
+@tool("List All Job Templates")
+def list_all_job_templates() -> str:
+    """List ALL available job templates in AAP with their names and descriptions.
+    Use this to discover what automation is available before deciding on a plan."""
+    result = aap.get("/api/controller/v2/job_templates/", params={"page_size": 50})
+    templates = [
+        {
+            "id": t["id"],
+            "name": t["name"],
+            "description": t.get("description", ""),
+        }
+        for t in result.get("results", [])
+    ]
+    if not templates:
+        return "No job templates found in AAP."
+    return json.dumps(templates, indent=2)
+
+
+@tool("Launch Job Template By Name")
+def launch_job_template(template_name: str) -> str:
+    """Launch an AAP job template by its exact name and wait for it to complete.
+    Returns the job status and output. Use this to run automation."""
+    t = aap.find_template(template_name)
+    if not t:
+        return json.dumps({
+            "error": f"Job template '{template_name}' not found in AAP",
+            "suggestion": "Use 'List All Job Templates' to see available templates"
+        })
+
+    job = aap.launch_template(t["id"])
+    job_id = job["id"]
+
+    try:
+        final = aap.wait_for_job(job_id)
+    except TimeoutError as e:
+        return json.dumps({"error": str(e)})
+
+    stdout = aap.get_job_stdout(job_id)
+    if len(stdout) > 3000:
+        stdout = stdout[:3000] + "\n... (truncated)"
+
+    return json.dumps({
+        "job_id": job_id,
+        "status": final["status"],
+        "template": template_name,
+        "output": stdout
+    }, indent=2)
+
+
+@tool("Get Recent Jobs")
+def get_recent_jobs() -> str:
+    """Get the 10 most recent AAP jobs with their status.
+    Useful for checking what ran recently and whether anything failed."""
+    result = aap.get(
+        "/api/controller/v2/jobs/",
+        params={"page_size": 10, "order_by": "-finished"}
+    )
+    jobs = [
+        {
+            "id": j["id"],
+            "name": j["name"],
+            "status": j["status"],
+            "finished": j.get("finished", ""),
+        }
+        for j in result.get("results", [])
+    ]
+    return json.dumps(jobs, indent=2)
+
+
+@tool("List Hosts")
+def list_hosts() -> str:
+    """List all hosts registered in AAP inventories.
+    Shows host names and which inventory they belong to."""
+    result = aap.get("/api/controller/v2/hosts/", params={"page_size": 50})
+    hosts = [
+        {
+            "id": h["id"],
+            "name": h["name"],
+            "inventory": h.get("summary_fields", {}).get("inventory", {}).get("name", ""),
+        }
+        for h in result.get("results", [])
+    ]
+    return json.dumps(hosts, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# Agent definitions
+# ---------------------------------------------------------------------------
+all_tools = [list_all_job_templates, launch_job_template, get_recent_jobs, list_hosts]
+
+triage_agent = Agent(
+    role="Incident Triage Specialist",
+    goal=(
+        "Understand the reported problem, discover what AAP automation is available, "
+        "and create an action plan. Determine if existing job templates can address "
+        "the problem or if no suitable automation exists."
+    ),
+    backstory=(
+        "You are an expert at triaging infrastructure incidents. Your first step is "
+        "always to discover what automation is available in AAP by listing all job "
+        "templates. You then assess whether any of them are relevant to the reported "
+        "problem. You check host inventory to confirm the target exists. You are "
+        "honest when no suitable automation is available -- you never try to force "
+        "an unrelated template to solve a problem it was not designed for."
+    ),
+    tools=all_tools,
+    verbose=True,
+    llm=f"anthropic/{LLM_MODEL}",
+)
+
+executor_agent = Agent(
+    role="Automation Executor",
+    goal=(
+        "Execute the action plan by launching the selected AAP job templates "
+        "in the correct order. Interpret the results of each job."
+    ),
+    backstory=(
+        "You are a disciplined automation operator. You only run job templates "
+        "that the triage specialist has identified as relevant. You launch "
+        "diagnostic templates first, then remediation templates, then verification "
+        "templates. You carefully read job output to understand what happened. "
+        "If the triage specialist determined that no suitable automation exists, "
+        "you acknowledge this and do not attempt to run unrelated templates."
+    ),
+    tools=all_tools,
+    verbose=True,
+    llm=f"anthropic/{LLM_MODEL}",
+)
+
+reporter_agent = Agent(
+    role="Incident Reporter",
+    goal=(
+        "Produce a clear, actionable incident report summarizing what was found, "
+        "what was done, and what the outcome was."
+    ),
+    backstory=(
+        "You are a technical writer who creates concise incident reports. "
+        "Your reports always include: problem summary, available automation, "
+        "actions taken (or why no action was possible), results, and "
+        "recommendations. When no automation was available, you recommend "
+        "what Ansible playbooks and job templates should be created."
+    ),
+    tools=[],
+    verbose=True,
+    llm=f"anthropic/{LLM_MODEL}",
+)
+
+
+# ---------------------------------------------------------------------------
+# Task definitions
+# ---------------------------------------------------------------------------
+def build_tasks(problem_description):
+    """Build the task pipeline for any given problem."""
+
+    triage = Task(
+        description=(
+            f"A problem has been reported:\n\n"
+            f"  \"{problem_description}\"\n\n"
+            f"Your job:\n"
+            f"1. List ALL available job templates in AAP to see what automation exists\n"
+            f"2. List all hosts to confirm the target infrastructure exists\n"
+            f"3. Check recent job history for related failures\n"
+            f"4. Assess which templates (if any) are relevant to this problem\n"
+            f"5. Create an action plan:\n"
+            f"   - If relevant templates exist: list them in order (diagnose, fix, verify)\n"
+            f"   - If NO relevant templates exist: clearly state that no suitable "
+            f"     automation was found and explain why\n\n"
+            f"Be specific about template names. Do not suggest templates that are "
+            f"unrelated to the reported problem."
+        ),
+        expected_output=(
+            "A triage report containing:\n"
+            "- Problem understanding\n"
+            "- Available AAP automation (full template list)\n"
+            "- Target host verification\n"
+            "- Action plan with specific template names, OR a clear statement "
+            "that no suitable automation exists"
+        ),
+        agent=triage_agent,
+    )
+
+    execute = Task(
+        description=(
+            "Execute the action plan from the triage report.\n\n"
+            "If relevant templates were identified:\n"
+            "1. Run diagnostic template(s) first to confirm the problem\n"
+            "2. Run remediation template(s) to fix the problem\n"
+            "3. Run verification template(s) to confirm the fix\n\n"
+            "If no relevant templates were found:\n"
+            "- Do NOT run unrelated templates\n"
+            "- Acknowledge that automated remediation is not possible\n"
+            "- Note what the output would look like if automation existed"
+        ),
+        expected_output=(
+            "An execution log showing:\n"
+            "- Which templates were run and their results, OR\n"
+            "- A statement that no automation was executed because no suitable "
+            "templates exist"
+        ),
+        agent=executor_agent,
+        context=[triage],
+    )
+
+    report = Task(
+        description=(
+            "Create a final incident report based on the triage and execution results.\n\n"
+            "The report must include these sections:\n"
+            "1. INCIDENT SUMMARY: What problem was reported\n"
+            "2. AVAILABLE AUTOMATION: What AAP templates were found\n"
+            "3. ACTIONS TAKEN: What was executed and the results\n"
+            "4. OUTCOME: Was the problem resolved?\n"
+            "5. RECOMMENDATIONS:\n"
+            "   - If resolved: how to prevent recurrence\n"
+            "   - If NOT resolved: what Ansible playbooks and AAP job templates "
+            "     should be created to handle this type of problem in the future. "
+            "     Be specific about playbook names, modules to use, and template "
+            "     configuration."
+        ),
+        expected_output=(
+            "A formatted incident report with all 5 sections. "
+            "For unresolved incidents, the RECOMMENDATIONS section should include "
+            "specific Ansible module suggestions and playbook outlines."
+        ),
+        agent=reporter_agent,
+        context=[triage, execute],
+    )
+
+    return [triage, execute, report]
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(
+        description="Agentic AIOps: AI-driven incident response using AAP"
+    )
+    parser.add_argument(
+        "problem",
+        nargs="?",
+        default="Apache web server is down on node1",
+        help="Problem description (default: 'Apache web server is down on node1')"
+    )
+    parser.add_argument(
+        "--break-first", action="store_true",
+        help="Run 'Break Apache' template first to simulate an incident"
+    )
+    args = parser.parse_args()
+
+    # Suppress SSL warnings for lab environment
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    print(f"\n{'='*60}")
+    print("AGENTIC AIOPS INCIDENT RESPONSE")
+    print(f"{'='*60}")
+
+    if args.break_first:
+        print(f"\nSimulating incident...")
+        t = aap.find_template("Break Apache")
+        if t:
+            job = aap.launch_template(t["id"])
+            aap.wait_for_job(job["id"])
+            print("Done. Apache is now broken.\n")
+        else:
+            print("WARNING: 'Break Apache' template not found.\n")
+
+    print(f"\nProblem: {args.problem}")
+    print(f"{'='*60}\n")
+
+    # Configure CrewAI to use our LLM proxy
+    os.environ["ANTHROPIC_API_KEY"] = LLM_API_KEY
+    os.environ["ANTHROPIC_BASE_URL"] = LLM_BASE_URL
+
+    tasks = build_tasks(args.problem)
+
+    crew = Crew(
+        agents=[triage_agent, executor_agent, reporter_agent],
+        tasks=tasks,
+        process=Process.sequential,
+        verbose=True,
+    )
+
+    result = crew.kickoff()
+
+    print(f"\n{'='*60}")
+    print("FINAL REPORT")
+    print(f"{'='*60}\n")
+    print(result)
+
+
+if __name__ == "__main__":
+    main()
