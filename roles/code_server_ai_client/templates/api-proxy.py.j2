@@ -34,7 +34,7 @@ async def anthropic_proxy(request):
     headers = {}
     for k, v in request.headers.items():
         low = k.lower()
-        if low in ("host", "transfer-encoding"):
+        if low in ("host", "transfer-encoding", "content-length"):
             continue
         if low == "anthropic-beta":
             cleaned = [
