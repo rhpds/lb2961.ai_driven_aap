@@ -9,7 +9,6 @@
     path: "/home/{{ student_name }}/.continue"
     state: directory
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0755"
 
 - name: Create AAP gateway token for MCP authentication
@@ -68,7 +67,6 @@
     src: config.yaml.j2
     dest: "/home/{{ student_name }}/.continue/config.yaml"
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0644"
 
 - name: Place empty Continue.dev config.json fallback
@@ -76,5 +74,4 @@
     content: "{}"
     dest: "/home/{{ student_name }}/.continue/config.json"
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0644"

@@ -16,7 +16,6 @@
     content: "https://{{ student_name }}:{{ common_password }}@{{ ansible_dev_env_gitea_hostname }}\n"
     dest: "/home/{{ student_name }}/.git-credentials"
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0600"
 
 - name: Clone lightspeed_playbooks repo
