@@ -10,9 +10,10 @@ ansible_dev_env_pip_packages:
 # CrewAI agent support (disabled by default)
 ansible_dev_env_crewai_enabled: false
 ansible_dev_env_crewai_pip_packages:
-  - crewai
+  - "crewai[anthropic]"
   - crewai-tools
   - mcp
+  - pysqlite3-binary
 
 # Execution environment for ansible-navigator
 ansible_dev_env_ee_image: "quay.io/agnosticd/ee-ubi9-aap2.5:2.1.0"

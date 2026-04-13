@@ -117,8 +117,8 @@ class MCPToolkit:
                 return tools.tools
 
     def call_tool_sync(self, toolset, tool_name, arguments=None):
-        """Synchronous wrapper for calling MCP tools."""
-        return asyncio.get_event_loop().run_until_complete(
+        """Synchronous wrapper for calling MCP tools (thread-safe)."""
+        return asyncio.run(
             self._call_mcp_tool(toolset, tool_name, arguments)
         )
 
@@ -430,12 +430,6 @@ def main():
     # Configure CrewAI to use our LLM proxy
     os.environ["ANTHROPIC_API_KEY"] = LLM_API_KEY
     os.environ["ANTHROPIC_BASE_URL"] = LLM_BASE_URL
-
-    # Create an event loop for MCP async calls
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
     tasks = build_tasks(args.problem)
 

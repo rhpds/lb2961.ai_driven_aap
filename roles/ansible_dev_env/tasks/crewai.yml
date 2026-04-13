@@ -5,6 +5,12 @@
     name: "{{ ansible_dev_env_crewai_pip_packages }}"
     virtualenv: "{{ ansible_dev_env_venv_path }}"
 
+- name: Patch chromadb to use pysqlite3 (RHEL sqlite3 too old)
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_dev_env_venv_path }}/lib64/python3.12/site-packages/chromadb/__init__.py"
+    insertbefore: BOF
+    line: "import pysqlite3; import sys; sys.modules['sqlite3'] = pysqlite3"
+
 - name: Create CrewAI agent directory
   ansible.builtin.file:
     path: "/home/{{ student_name }}/agentic-aiops"
