@@ -28,7 +28,6 @@
     path: "/home/{{ student_name }}/.claude"
     state: directory
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0700"
 
 - name: Determine API base URL
@@ -47,7 +46,6 @@
     src: claude-global-settings.json.j2
     dest: "/home/{{ student_name }}/.claude/settings.json"
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0600"
 
 - name: Place ~/.claude.json (MCP servers)
@@ -55,7 +53,6 @@
     src: claude-settings.json.j2
     dest: "/home/{{ student_name }}/.claude.json"
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
     mode: "0600"
 
 - name: Set Claude Code environment in .bashrc
@@ -66,7 +63,6 @@
       export ANTHROPIC_BASE_URL="{{ _claude_base_url | trim }}"
       export ANTHROPIC_API_KEY="{{ _claude_api_key | trim }}"
     owner: "{{ student_name }}"
-    group: "{{ student_name }}"
 
 
 # Note: claudeCode.disableLoginPrompt is set via vscode_server_additional_settings
