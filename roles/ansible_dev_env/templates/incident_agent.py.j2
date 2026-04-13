@@ -12,6 +12,7 @@ Run one agent at a time for step-by-step exercises, or all at once:
   python3 incident_agent.py report "Apache is down on node1"
   python3 incident_agent.py all "Apache is down on node1"
   python3 incident_agent.py all --break-first "Apache is down on node1"
+  python3 incident_agent.py triage --verbose "Apache is down on node1"
 """
 
 import argparse
@@ -168,6 +169,9 @@ all_tools = [
 ]
 
 
+VERBOSE = False
+
+
 def make_triage_agent():
     return Agent(
         role="Incident Triage Specialist",
@@ -183,7 +187,7 @@ def make_triage_agent():
             "Never use emojis. Use plain text only. Keep output brief and direct."
         ),
         tools=all_tools,
-        verbose=True,
+        verbose=VERBOSE,
         llm=f"anthropic/{LLM_MODEL}",
     )
 
@@ -203,7 +207,7 @@ def make_executor_agent():
             "Never use emojis. Use plain text only. Keep output brief and direct."
         ),
         tools=all_tools,
-        verbose=True,
+        verbose=VERBOSE,
         llm=f"anthropic/{LLM_MODEL}",
     )
 
@@ -219,7 +223,7 @@ def make_reporter_agent():
             "Never use emojis. Use plain text only."
         ),
         tools=[],
-        verbose=True,
+        verbose=VERBOSE,
         llm=f"anthropic/{LLM_MODEL}",
     )
 
@@ -301,7 +305,7 @@ def build_report_task(problem, agent, context_tasks):
 def run_triage(problem):
     agent = make_triage_agent()
     task = build_triage_task(problem, agent)
-    crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=True)
+    crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=VERBOSE)
     return crew.kickoff()
 
 
@@ -313,7 +317,7 @@ def run_execute(problem):
     crew = Crew(
         agents=[triage_agent, executor_agent],
         tasks=[triage_task, execute_task],
-        process=Process.sequential, verbose=True,
+        process=Process.sequential, verbose=VERBOSE,
     )
     return crew.kickoff()
 
@@ -328,7 +332,7 @@ def run_report(problem):
     crew = Crew(
         agents=[triage_agent, executor_agent, reporter_agent],
         tasks=[triage_task, execute_task, report_task],
-        process=Process.sequential, verbose=True,
+        process=Process.sequential, verbose=VERBOSE,
     )
     return crew.kickoff()
 
@@ -396,7 +400,14 @@ def main():
         "--break-first", action="store_true",
         help="Run 'Break Apache' template first to simulate an incident"
     )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Show full CrewAI agent reasoning and tool calls"
+    )
     args = parser.parse_args()
+
+    global VERBOSE
+    VERBOSE = args.verbose
 
     # Suppress SSL warnings for lab environment
     import urllib3
