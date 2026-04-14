@@ -7,7 +7,7 @@
   ansible.builtin.shell:
     cmd: >-
       source /home/{{ student_name }}/.nvm/nvm.sh &&
-      npm install -g {{ claude_code_npm_package }}
+      npm install -g {{ claude_code_npm_package }}@{{ claude_code_version }}
     executable: /bin/bash
   register: _claude_install
   changed_when: "'added' in _claude_install.stdout"

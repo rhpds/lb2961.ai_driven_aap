@@ -43,6 +43,7 @@ ai_client_proxy_gemini_model: gemini-2.5-pro
 # Claude Code settings
 # -------------------------------------------------------------------
 claude_code_npm_package: "@anthropic-ai/claude-code"
+claude_code_version: "2.1.107"
 claude_code_api_key: ""
 claude_code_base_url: ""
 
