@@ -92,8 +92,13 @@
     state: started
 
 - name: Wait for PostgreSQL to be ready
-  ansible.builtin.pause:
-    seconds: 30
+  ansible.builtin.command:
+    cmd: podman exec mattermost-postgres pg_isready -U {{ mattermost_postgres_user }}
+  register: pg_ready
+  retries: 30
+  delay: 5
+  until: pg_ready.rc == 0
+  changed_when: false
 
 - name: Deploy Mattermost container
   containers.podman.podman_container:
@@ -104,7 +109,7 @@
     ports:
       - "8065:8065"
     env:
-      MM_SERVICESETTINGS_ENABLELOCALMODE: true
+      MM_SERVICESETTINGS_ENABLELOCALMODE: "true"
       MM_USERNAME: "{{ mattermost_postgres_user }}"
       MM_PASSWORD: "{{ mattermost_postgres_password }}"
       MM_DBNAME: "{{ mattermost_postgres_db }}"
