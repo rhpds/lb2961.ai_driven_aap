@@ -32,4 +32,19 @@
     block: |
       export MCP_BASE_URL="http://localhost:{{ ai_client_mcp_port | default('8448') }}"
       export MCP_TOKEN="{{ ai_client_mcp_token | default('') }}"
+      export CREWAI_TRACING_ENABLED=false
     owner: "{{ student_name }}"
+
+- name: Create CrewAI config directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/.crewai"
+    state: directory
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Disable CrewAI tracing preference
+  ansible.builtin.copy:
+    content: '{"tracing_disabled": true}'
+    dest: "/home/{{ student_name }}/.crewai/telemetry_preference.json"
+    owner: "{{ student_name }}"
+    mode: "0644"
