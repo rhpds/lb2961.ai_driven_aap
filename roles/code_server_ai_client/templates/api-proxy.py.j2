@@ -37,12 +37,6 @@ async def anthropic_proxy(request):
         if low in ("host", "transfer-encoding", "content-length"):
             continue
         if low == "anthropic-beta":
-            cleaned = [
-                b.strip() for b in v.split(",")
-                if b.strip() not in BLOCKED_BETAS
-            ]
-            if cleaned:
-                headers[k] = ",".join(cleaned)
             continue
         headers[k] = v
 
