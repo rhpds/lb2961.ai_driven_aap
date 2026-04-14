@@ -22,6 +22,9 @@ import os
 import sys
 import time
 
+# Suppress CrewAI tracing prompt (must be set before import)
+os.environ.setdefault("CREWAI_TRACING_ENABLED", "false")
+
 try:
     from crewai import Agent, Crew, Task, Process
     from crewai.tools import tool
