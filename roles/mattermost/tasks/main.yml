@@ -124,6 +124,10 @@
       - "{{ mattermost_bleve_indexes_dir }}:/mattermost/bleve-indexes:z"
     state: started
 
+- name: Wait for Mattermost container to initialize
+  ansible.builtin.pause:
+    seconds: 15
+
 - name: Wait for Mattermost to be ready
   ansible.builtin.uri:
     url: "http://localhost:8065/api/v4/system/ping"
@@ -133,6 +137,20 @@
   delay: 10
   until: mm_ping.status == 200
   delegate_to: "{{ inventory_hostname }}"
+  ignore_errors: true
+
+- name: Get Mattermost container logs on failure
+  ansible.builtin.command: podman logs --tail 30 mattermost
+  register: mm_logs
+  changed_when: false
+  when: mm_ping is failed
+
+- name: Show Mattermost logs and fail
+  ansible.builtin.fail:
+    msg: |
+      Mattermost failed to start. Container logs:
+      {{ mm_logs.stdout }}
+  when: mm_ping is failed
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
