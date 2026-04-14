@@ -54,6 +54,18 @@
   ansible.builtin.set_fact:
     ai_client_mcp_token: "{{ _gateway_token_result.ansible_facts.aap_token.token }}"
 
+- name: Ensure code-server extensions are installed
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      code-server --install-extension {{ item }}
+    executable: /bin/bash
+  loop: "{{ ai_client_ensure_extensions }}"
+  register: _ext_install
+  changed_when: "'was successfully installed' in _ext_install.stdout"
+  failed_when: false
+  when: ai_client_ensure_extensions | length > 0
+
 - name: Set up API proxy
   when: ai_client_proxy_enabled | bool
   ansible.builtin.include_tasks: proxy.yml

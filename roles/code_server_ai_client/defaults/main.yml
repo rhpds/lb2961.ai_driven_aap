@@ -49,6 +49,14 @@ claude_code_base_url: ""
 # Claude Code VS Code extension
 claude_code_vsix_url: ""
 
+# Additional code-server extensions to ensure are installed (by marketplace ID).
+# These are installed via `code-server --install-extension <id>` which pulls
+# from Open VSX marketplace directly. Use as a fallback when VSIX URL downloads
+# fail (e.g., S3 or Open VSX 403 errors from sandbox IPs).
+ai_client_ensure_extensions:
+  - redhat.ansible
+  - redhat.vscode-yaml
+
 # -------------------------------------------------------------------
 # Continue.dev settings (for future use)
 # -------------------------------------------------------------------
