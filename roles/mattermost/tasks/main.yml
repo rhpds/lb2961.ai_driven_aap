@@ -119,15 +119,24 @@
       - "{{ mattermost_bleve_indexes_dir }}:/mattermost/bleve-indexes:z"
     state: started
 
-- name: Wait for Mattermost to be ready
-  ansible.builtin.pause:
-    seconds: 60
+- name: Wait for Mattermost local socket to be ready
+  containers.podman.podman_container_exec:
+    name: mattermost
+    command: "test -S /var/tmp/mattermost_local.socket"
+  register: socket_check
+  retries: 30
+  delay: 10
+  until: socket_check.rc == 0
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
     src: "{{ mattermost_local_backup_path }}"
     dest: /tmp/backup.zip
     container: mattermost
+  retries: 3
+  delay: 10
+  register: copy_result
+  until: copy_result is not failed
 
 - name: Configure Mattermost after deployment
   block:
