@@ -184,6 +184,25 @@
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl import process --bypass-upload /tmp/backup.zip"
+      register: import_process
+
+    - name: Wait for import job to complete
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl import job list"
+      register: import_jobs
+      retries: 30
+      delay: 10
+      until: >-
+        import_jobs.stdout is search('status: success')
+        or import_jobs.stdout is search('pending')
+        and not (import_jobs.stdout is search('status: in_progress'))
+      changed_when: false
+      failed_when: import_jobs.stdout is search('status: error')
+
+    - name: Wait for import data to settle
+      ansible.builtin.pause:
+        seconds: 15
 
     - name: Create ansibleadmin user
       containers.podman.podman_container_exec:
@@ -195,15 +214,19 @@
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl team add automators ansibleadmin@ansible.com"
-
-    - name: Wait for import to settle
-      ansible.builtin.pause:
-        seconds: 30
+      retries: 6
+      delay: 10
+      register: team_add
+      until: team_add.rc == 0
 
     - name: List channels in automators team
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl channel list automators"
+      retries: 3
+      delay: 5
+      register: channel_list
+      until: channel_list.rc == 0
 
     - name: Get Mattermost Channel ID
       containers.podman.podman_container_exec:
