@@ -194,11 +194,11 @@
       retries: 30
       delay: 10
       until: >-
-        import_jobs.stdout is search('status: success')
-        or import_jobs.stdout is search('pending')
-        and not (import_jobs.stdout is search('status: in_progress'))
+        import_jobs.stdout is search("status[:] success")
+        or import_jobs.stdout is search("pending")
+        and not (import_jobs.stdout is search("status[:] in_progress"))
       changed_when: false
-      failed_when: import_jobs.stdout is search('status: error')
+      failed_when: import_jobs.stdout is search("status[:] error")
 
     - name: Wait for import data to settle
       ansible.builtin.pause:
