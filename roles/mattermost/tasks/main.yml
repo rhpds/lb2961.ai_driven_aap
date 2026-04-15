@@ -52,18 +52,6 @@
     - "{{ mattermost_bleve_indexes_dir }}"
     - "{{ mattermost_postgres_data_dir }}"
 
-# - name: Create temporary directory for GitHub clone
-#   ansible.builtin.file:
-#     path: /tmp/mattermost_backup
-#     state: directory
-#     mode: '0755'
-
-# - name: Clone GitHub repository to get backup file
-#   ansible.builtin.git:
-#     repo: "https://{{ mattermost_github_repo }}"
-#     dest: /tmp/mattermost_backup
-#     force: true
-
 - name: Copy backup file to local path
   ansible.builtin.copy:
     src: "{{ mattermost_backup_file }}"
@@ -124,10 +112,6 @@
       - "{{ mattermost_bleve_indexes_dir }}:/mattermost/bleve-indexes:z"
     state: started
 
-- name: Wait for Mattermost container to initialize
-  ansible.builtin.pause:
-    seconds: 15
-
 - name: Wait for Mattermost to be ready
   ansible.builtin.uri:
     url: "http://localhost:8065/api/v4/system/ping"
@@ -136,7 +120,6 @@
   retries: 30
   delay: 10
   until: mm_ping.status == 200
-  delegate_to: "{{ inventory_hostname }}"
   ignore_errors: true
 
 - name: Get Mattermost container logs on failure
@@ -152,22 +135,6 @@
       {{ mm_logs.stdout }}
   when: mm_ping is failed
 
-- name: Create initial admin via Mattermost API (first user is auto-promoted to system admin)
-  ansible.builtin.uri:
-    url: "http://localhost:8065/api/v4/users"
-    method: POST
-    body_format: json
-    body:
-      email: "admin@ansible.com"
-      username: "admin"
-      password: "{{ mattermost_admin_password }}"
-    status_code: [200, 201]
-
-- name: Authenticate mmctl with API credentials
-  containers.podman.podman_container_exec:
-    name: mattermost
-    command: "mmctl auth login http://localhost:8065 --name local --username admin --password {{ mattermost_admin_password }}"
-
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
     src: "{{ mattermost_local_backup_path }}"
@@ -180,58 +147,43 @@
 
 - name: Configure Mattermost after deployment
   block:
+    - name: Create mattermost admin
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local user create --email admin@ansible.com --username admin --password {{ mattermost_admin_password }} --system-admin"
+
     - name: Import mattermost config
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl import process --bypass-upload /tmp/backup.zip"
-      register: import_process
+        command: "mmctl --local import process --bypass-upload /tmp/backup.zip"
 
-    - name: Wait for import job to complete
-      containers.podman.podman_container_exec:
-        name: mattermost
-        command: "mmctl import job list"
-      register: import_jobs
-      retries: 30
-      delay: 10
-      until: >-
-        import_jobs.stdout is search("status[:] success")
-        or import_jobs.stdout is search("pending")
-        and not (import_jobs.stdout is search("status[:] in_progress"))
-      changed_when: false
-      failed_when: import_jobs.stdout is search("status[:] error")
-
-    - name: Wait for import data to settle
+    - name: Wait for import to process
       ansible.builtin.pause:
-        seconds: 15
+        seconds: 60
 
     - name: Create ansibleadmin user
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
-      register: import_result
+        command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
 
     - name: Add admin to team
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl team add automators ansibleadmin@ansible.com"
-      retries: 6
-      delay: 10
-      register: team_add
-      until: team_add.rc == 0
+        command: "mmctl --local team add automators ansibleadmin@ansible.com"
+
+    - name: Wait for import to settle
+      ansible.builtin.pause:
+        seconds: 45
 
     - name: List channels in automators team
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl channel list automators"
-      retries: 3
-      delay: 5
-      register: channel_list
-      until: channel_list.rc == 0
+        command: "mmctl --local channel list automators"
 
     - name: Get Mattermost Channel ID
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl channel search town-square"
+        command: "mmctl --local channel search town-square"
       register: channel_output
 
     - name: Extract Channel ID
@@ -244,12 +196,12 @@
     - name: Create Incoming Webhook
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl webhook create-incoming --channel {{ channel_id }} --user admin --display-name Incoming Webhook --lock-to-channel"
+        command: "mmctl --local webhook create-incoming --channel {{ channel_id }} --user admin --display-name Incoming Webhook --lock-to-channel"
 
     - name: List webhook
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl webhook list"
+        command: "mmctl --local webhook list"
       register: webhook_list
 
     - name: Show webhook details
