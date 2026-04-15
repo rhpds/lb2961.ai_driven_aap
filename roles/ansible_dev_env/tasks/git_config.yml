@@ -30,7 +30,7 @@
   become_user: "{{ student_name }}"
   ansible.builtin.command:
     cmd: >-
-      git clone https://{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git
+      git clone https://{{ student_name }}:{{ common_password }}@{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git
       {{ ansible_dev_env_repo_path }}
     creates: "{{ ansible_dev_env_repo_path }}"
   environment:
@@ -40,3 +40,4 @@
   timeout: 60
   when: _gitea_check.status | default(0) == 200
   ignore_errors: true
+  no_log: true
