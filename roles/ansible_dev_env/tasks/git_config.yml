@@ -18,12 +18,24 @@
     owner: "{{ student_name }}"
     mode: "0600"
 
+- name: Check Gitea is reachable before cloning
+  ansible.builtin.uri:
+    url: "https://{{ ansible_dev_env_gitea_hostname }}"
+    validate_certs: false
+    timeout: 10
+  register: _gitea_check
+  failed_when: false
+
 - name: Clone lightspeed_playbooks repo
   become_user: "{{ student_name }}"
-  ansible.builtin.git:
-    repo: "https://{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git"
-    dest: "{{ ansible_dev_env_repo_path }}"
-    version: main
+  ansible.builtin.command:
+    cmd: >-
+      git clone https://{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git
+      {{ ansible_dev_env_repo_path }}
+    creates: "{{ ansible_dev_env_repo_path }}"
   environment:
     GIT_SSL_NO_VERIFY: "true"
+    GIT_TERMINAL_PROMPT: "0"
+  timeout: 60
+  when: _gitea_check.status | default(0) == 200
   ignore_errors: true
