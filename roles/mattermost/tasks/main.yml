@@ -152,6 +152,15 @@
       {{ mm_logs.stdout }}
   when: mm_ping is failed
 
+- name: Wait for Mattermost local socket to be ready
+  ansible.builtin.command:
+    cmd: podman exec mattermost test -S /var/tmp/mattermost_local.socket
+  register: mm_socket
+  retries: 30
+  delay: 5
+  until: mm_socket.rc == 0
+  changed_when: false
+
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
     src: "{{ mattermost_local_backup_path }}"
