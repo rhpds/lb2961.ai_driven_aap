@@ -152,14 +152,21 @@
       {{ mm_logs.stdout }}
   when: mm_ping is failed
 
-- name: Wait for Mattermost local socket to be ready
-  ansible.builtin.command:
-    cmd: podman exec mattermost ls /var/tmp/mattermost_local.socket
-  register: mm_socket
-  retries: 30
-  delay: 5
-  until: mm_socket.rc == 0
-  changed_when: false
+- name: Create initial admin via Mattermost API (first user is auto-promoted to system admin)
+  ansible.builtin.uri:
+    url: "http://localhost:8065/api/v4/users"
+    method: POST
+    body_format: json
+    body:
+      email: "admin@ansible.com"
+      username: "admin"
+      password: "{{ mattermost_admin_password }}"
+    status_code: [200, 201]
+
+- name: Authenticate mmctl with API credentials
+  containers.podman.podman_container_exec:
+    name: mattermost
+    command: "mmctl auth login http://localhost:8065 --name local --username admin --password {{ mattermost_admin_password }}"
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
@@ -173,41 +180,35 @@
 
 - name: Configure Mattermost after deployment
   block:
-    - name: Create mattermost admin
-      containers.podman.podman_container_exec:
-        name: mattermost
-        command: "mmctl --local user create --email admin@ansible.com --username admin --password {{ mattermost_admin_password }} --system-admin"
-      register: import_result
-
     - name: Import mattermost config
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local import process --bypass-upload /tmp/backup.zip"
+        command: "mmctl import process --bypass-upload /tmp/backup.zip"
 
-    - name: Create mattermost admin
+    - name: Create ansibleadmin user
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
+        command: "mmctl user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
       register: import_result
 
     - name: Add admin to team
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local team add automators ansibleadmin@ansible.com"
+        command: "mmctl team add automators ansibleadmin@ansible.com"
 
-    - name: Wait for Mattermost to be ready
+    - name: Wait for import to settle
       ansible.builtin.pause:
         seconds: 30
 
-    - name: Get Mattermost Channel ID
+    - name: List channels in automators team
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local channel list automators"
+        command: "mmctl channel list automators"
 
     - name: Get Mattermost Channel ID
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local channel search town-square"
+        command: "mmctl channel search town-square"
       register: channel_output
 
     - name: Extract Channel ID
@@ -220,12 +221,12 @@
     - name: Create Incoming Webhook
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local webhook create-incoming --channel {{ channel_id }} --user admin --display-name Incoming Webhook --lock-to-channel"
+        command: "mmctl webhook create-incoming --channel {{ channel_id }} --user admin --display-name Incoming Webhook --lock-to-channel"
 
     - name: List webhook
       containers.podman.podman_container_exec:
         name: mattermost
-        command: "mmctl --local webhook list"
+        command: "mmctl webhook list"
       register: webhook_list
 
     - name: Show webhook details
