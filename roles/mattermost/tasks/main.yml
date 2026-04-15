@@ -154,7 +154,7 @@
 
 - name: Wait for Mattermost local socket to be ready
   ansible.builtin.command:
-    cmd: podman exec mattermost test -S /var/tmp/mattermost_local.socket
+    cmd: podman exec mattermost ls /var/tmp/mattermost_local.socket
   register: mm_socket
   retries: 30
   delay: 5
