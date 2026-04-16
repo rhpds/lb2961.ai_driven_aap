@@ -21,6 +21,9 @@
 - name: Wait for Gitea repo to be ready
   ansible.builtin.uri:
     url: "https://{{ ansible_dev_env_gitea_hostname }}/api/v1/repos/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}"
+    url_username: "{{ student_name }}"
+    url_password: "{{ common_password }}"
+    force_basic_auth: true
     validate_certs: false
     timeout: 10
   retries: 30
