@@ -47,8 +47,8 @@ claude_code_version: "2.1.107"
 claude_code_api_key: ""
 claude_code_base_url: ""
 
-# Claude Code VS Code extension
-claude_code_vsix_url: ""
+# Claude Code VS Code extension (Open VSX VSIX URL, falls back to marketplace ID)
+claude_code_vsix_url: "https://open-vsx.org/api/Anthropic/claude-code/linux-x64/{{ claude_code_version }}/file/Anthropic.claude-code-{{ claude_code_version }}@linux-x64.vsix"
 
 # Additional code-server extensions to ensure are installed (by marketplace ID).
 # These are installed via `code-server --install-extension <id>` which pulls

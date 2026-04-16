@@ -12,7 +12,7 @@
   register: _claude_install
   changed_when: "'added' in _claude_install.stdout"
 
-- name: Install Claude Code VS Code extension
+- name: Install Claude Code VS Code extension from VSIX URL
   when: claude_code_vsix_url | default('') | length > 0
   become_user: "{{ student_name }}"
   ansible.builtin.shell:
@@ -21,6 +21,18 @@
     executable: /bin/bash
   register: _claude_ext
   changed_when: "'was successfully installed' in _claude_ext.stdout"
+  failed_when: false
+
+- name: Install Claude Code extension from marketplace (fallback)
+  when:
+    - _claude_ext is skipped or _claude_ext is failed or _claude_ext.rc | default(1) != 0
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: >-
+      code-server --install-extension Anthropic.claude-code
+    executable: /bin/bash
+  register: _claude_ext_fallback
+  changed_when: "'was successfully installed' in _claude_ext_fallback.stdout"
   failed_when: false
 
 - name: Create Claude Code config directory
