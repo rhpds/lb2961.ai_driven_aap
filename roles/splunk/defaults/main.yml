@@ -44,14 +44,6 @@ splunk_container_apps_path: "/opt/splunk/etc/apps/"
 splunk_app_owner: "splunk"
 splunk_app_group: "splunk"
 
-# Data inputs to create via REST API after Splunk starts
-# Each entry creates a TCP raw input with the specified sourcetype and index
-# Port 5514 is left for students to configure manually (OSPF lab exercise)
-splunk_data_inputs:
-  - port: "{{ splunk_syslog_alt_container_port }}"
-    sourcetype: syslog
-    index: main
-
 # Systemd service configuration
 splunk_service_enable: true
 splunk_service_name: "container-{{ splunk_container_name }}"

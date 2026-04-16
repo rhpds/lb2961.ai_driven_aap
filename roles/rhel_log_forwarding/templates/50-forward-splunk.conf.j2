@@ -1,7 +1,0 @@
-# Forward all system logs to Splunk syslog input
-# Use traditional framing (newline-delimited) for Splunk compatibility
-*.* action(type="omfwd"
-           target="{{ rhel_log_forwarding_target }}"
-           port="{{ rhel_log_forwarding_port }}"
-           protocol="{{ rhel_log_forwarding_protocol }}"
-           template="RSYSLOG_TraditionalForwardFormat")
