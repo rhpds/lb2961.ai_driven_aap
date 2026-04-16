@@ -26,7 +26,7 @@
     force_basic_auth: true
     validate_certs: false
     timeout: 10
-  retries: 30
+  retries: 10
   delay: 10
   register: _repo_check
   until: _repo_check.status == 200
