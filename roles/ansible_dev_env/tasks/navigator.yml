@@ -1,0 +1,48 @@
+---
+- name: Place ansible-navigator.yml config
+  ansible.builtin.template:
+    src: ansible-navigator.yml.j2
+    dest: "{{ ansible_dev_env_navigator_config_dest }}"
+    owner: "{{ student_name }}"
+    mode: "0644"
+
+- name: Place ansible.cfg in repo
+  ansible.builtin.template:
+    src: ansible.cfg.j2
+    dest: "{{ ansible_dev_env_ansible_cfg_dest }}"
+    owner: "{{ student_name }}"
+    mode: "0644"
+
+- name: Place inventory file in repo
+  ansible.builtin.template:
+    src: inventory.ini.j2
+    dest: "{{ ansible_dev_env_inventory_dest }}"
+    owner: "{{ student_name }}"
+    mode: "0644"
+
+- name: Commit ansible.cfg and inventory to repo
+  become_user: "{{ student_name }}"
+  ansible.builtin.shell:
+    cmd: git add ansible.cfg inventory && git commit -m "Add ansible.cfg and inventory for lab environment"
+    chdir: "{{ ansible_dev_env_repo_path }}"
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  register: _git_commit
+  changed_when: _git_commit.rc == 0
+  failed_when: false
+
+- name: Push initial config to Gitea
+  become_user: "{{ student_name }}"
+  ansible.builtin.command:
+    cmd: git push origin main
+    chdir: "{{ ansible_dev_env_repo_path }}"
+  environment:
+    GIT_SSL_NO_VERIFY: "true"
+  when: _git_commit.rc == 0
+
+- name: Pre-pull execution environment image
+  become_user: "{{ student_name }}"
+  containers.podman.podman_image:
+    name: "{{ ansible_dev_env_ee_image }}"
+    pull: true
+    state: present

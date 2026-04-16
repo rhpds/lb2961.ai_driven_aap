@@ -1,0 +1,24 @@
+---
+# Configures Continue.dev with optional MCP server config.
+# Preserved from continue_dev_config role for future use.
+
+- name: Create Continue.dev config directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/.continue"
+    state: directory
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Place Continue.dev config.yaml
+  ansible.builtin.template:
+    src: continue-config.yaml.j2
+    dest: "/home/{{ student_name }}/.continue/config.yaml"
+    owner: "{{ student_name }}"
+    mode: "0644"
+
+- name: Place empty Continue.dev config.json fallback
+  ansible.builtin.copy:
+    content: "{}"
+    dest: "/home/{{ student_name }}/.continue/config.json"
+    owner: "{{ student_name }}"
+    mode: "0644"

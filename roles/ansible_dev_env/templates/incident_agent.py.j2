@@ -1,0 +1,467 @@
+#!/usr/bin/env python3
+"""
+Agentic AIOps Incident Response
+================================
+A CrewAI multi-agent workflow that uses Ansible Automation Platform
+as its trusted execution layer via MCP (Model Context Protocol).
+
+Run one agent at a time for step-by-step exercises, or all at once:
+
+  python3 incident_agent.py triage "Apache is down on node1"
+  python3 incident_agent.py execute "Apache is down on node1"
+  python3 incident_agent.py report "Apache is down on node1"
+  python3 incident_agent.py all "Apache is down on node1"
+  python3 incident_agent.py all --break-first "Apache is down on node1"
+  python3 incident_agent.py triage --verbose "Apache is down on node1"
+"""
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+import time
+
+# Suppress CrewAI tracing prompt (must be set before import)
+os.environ.setdefault("CREWAI_TRACING_ENABLED", "false")
+
+try:
+    from crewai import Agent, Crew, Task, Process
+    from crewai.tools import tool
+except ImportError:
+    print("CrewAI is not installed. Run: pip install 'crewai[anthropic]' crewai-tools")
+    sys.exit(1)
+
+try:
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamablehttp_client
+except ImportError:
+    print("MCP client is not installed. Run: pip install mcp")
+    sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# Configuration from environment
+# ---------------------------------------------------------------------------
+MCP_BASE_URL = os.environ.get(
+    "MCP_BASE_URL",
+    "http://localhost:{{ mcp_server_port | default('8448') }}"
+)
+MCP_TOKEN = os.environ.get("MCP_TOKEN", "{{ ai_client_mcp_token | default('') }}")
+
+LLM_BASE_URL = os.environ.get(
+    "ANTHROPIC_BASE_URL",
+    "http://127.0.0.1:{{ ai_client_proxy_port | default('4010') }}"
+)
+LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+
+# AAP credentials for --break-first only (direct API call)
+AAP_BASE_URL = os.environ.get(
+    "AAP_BASE_URL",
+    "{{ ansible_automation_platform_configuration_host }}"
+)
+AAP_USERNAME = os.environ.get("AAP_USERNAME", "{{ student_name }}")
+AAP_PASSWORD = os.environ.get("AAP_PASSWORD", "{{ common_password }}")
+
+
+# ---------------------------------------------------------------------------
+# MCP Client
+# ---------------------------------------------------------------------------
+class MCPToolkit:
+    """Connects to the AAP MCP server and exposes tools for CrewAI."""
+
+    def __init__(self, base_url, token):
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+
+    async def _call_mcp_tool(self, toolset, tool_name, arguments=None):
+        url = f"{self.base_url}/mcp/{toolset}"
+        headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
+        async with streamablehttp_client(url, headers=headers) as (r, w, _):
+            async with ClientSession(r, w) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments or {})
+                return "\n".join(
+                    b.text for b in result.content if hasattr(b, "text")
+                )
+
+    def call_tool_sync(self, toolset, tool_name, arguments=None):
+        """Synchronous wrapper for calling MCP tools (thread-safe)."""
+        return asyncio.run(
+            self._call_mcp_tool(toolset, tool_name, arguments)
+        )
+
+
+mcp_toolkit = MCPToolkit(MCP_BASE_URL, MCP_TOKEN)
+
+
+# ---------------------------------------------------------------------------
+# CrewAI Tools -- wrappers around MCP operations
+# ---------------------------------------------------------------------------
+@tool("List All Job Templates")
+def list_all_job_templates() -> str:
+    """List ALL available job templates in AAP with their names and descriptions.
+    Use this to discover what automation is available before deciding on a plan."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "job_templates_list", {"page_size": 50}
+    )
+
+
+@tool("Get Job Template Details")
+def get_job_template_details(template_id: str) -> str:
+    """Get detailed information about a specific job template by its ID."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "job_templates_retrieve", {"id": template_id}
+    )
+
+
+@tool("Launch Job Template")
+def launch_job_template(template_id: str) -> str:
+    """Launch an AAP job template by its ID. Poll job status separately after."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "job_templates_launch_create", {"id": template_id}
+    )
+
+
+@tool("Get Job Status")
+def get_job_status(job_id: str) -> str:
+    """Check the status of a job by its ID (pending/running/successful/failed)."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "jobs_retrieve", {"id": job_id}
+    )
+
+
+@tool("Get Job Output")
+def get_job_output(job_id: str) -> str:
+    """Get the stdout output of a completed job."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "jobs_stdout_retrieve", {"id": job_id}
+    )
+
+
+@tool("List Recent Jobs")
+def get_recent_jobs() -> str:
+    """Get the most recent AAP jobs with their status."""
+    return mcp_toolkit.call_tool_sync(
+        "job_management", "jobs_list", {"page_size": 10, "order_by": "-finished"}
+    )
+
+
+@tool("List Hosts")
+def list_hosts() -> str:
+    """List all hosts registered in AAP inventories."""
+    return mcp_toolkit.call_tool_sync(
+        "inventory_management", "hosts_list", {"page_size": 50}
+    )
+
+
+@tool("List Inventories")
+def list_inventories() -> str:
+    """List all inventories in AAP."""
+    return mcp_toolkit.call_tool_sync(
+        "inventory_management", "inventories_list", {}
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent definitions
+# ---------------------------------------------------------------------------
+all_tools = [
+    list_all_job_templates, get_job_template_details, launch_job_template,
+    get_job_status, get_job_output, get_recent_jobs, list_hosts, list_inventories,
+]
+
+
+VERBOSE = False
+
+
+def make_triage_agent():
+    return Agent(
+        role="Incident Triage Specialist",
+        goal=(
+            "Understand the reported problem, discover what AAP automation is "
+            "available, and create a short action plan."
+        ),
+        backstory=(
+            "You are an expert at triaging infrastructure incidents. You always "
+            "start by listing all AAP job templates to discover available automation. "
+            "You check host inventory to confirm targets exist. You are honest when "
+            "no suitable automation is available. "
+            "Never use emojis. Use plain text only. Keep output brief and direct."
+        ),
+        tools=all_tools,
+        verbose=VERBOSE,
+        llm=f"anthropic/{LLM_MODEL}",
+    )
+
+
+def make_executor_agent():
+    return Agent(
+        role="Automation Executor",
+        goal=(
+            "Execute the triage action plan by launching AAP job templates "
+            "in order: diagnose, fix, verify. Report results concisely."
+        ),
+        backstory=(
+            "You are a disciplined automation operator. You only run templates "
+            "identified as relevant. After launching a job, check its status "
+            "before reading output. If no suitable templates exist, do not run "
+            "unrelated ones. "
+            "Never use emojis. Use plain text only. Keep output brief and direct."
+        ),
+        tools=all_tools,
+        verbose=VERBOSE,
+        llm=f"anthropic/{LLM_MODEL}",
+    )
+
+
+def make_reporter_agent():
+    return Agent(
+        role="Incident Reporter",
+        goal="Produce a short, clear incident summary.",
+        backstory=(
+            "You write concise incident summaries. Keep it under 15 lines. "
+            "Include: what happened, what was done, outcome, and one key "
+            "recommendation. No tables, no detailed playbook outlines. "
+            "Never use emojis. Use plain text only."
+        ),
+        tools=[],
+        verbose=VERBOSE,
+        llm=f"anthropic/{LLM_MODEL}",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task definitions
+# ---------------------------------------------------------------------------
+def build_triage_task(problem, agent):
+    return Task(
+        description=(
+            f"Problem reported: \"{problem}\"\n\n"
+            f"Steps:\n"
+            f"1. List all job templates in AAP\n"
+            f"2. List hosts to confirm the target exists\n"
+            f"3. Check recent jobs for related activity\n"
+            f"4. Create a short action plan (which templates to run and in what order)\n\n"
+            f"If no relevant templates exist, say so clearly."
+        ),
+        expected_output=(
+            "Plain text only, no emojis, no markdown tables. Under 10 lines:\n"
+            "PROBLEM: one-line summary\n"
+            "TEMPLATES: relevant template names + IDs, or 'none found'\n"
+            "HOST: confirmed or not\n"
+            "PLAN: numbered list of templates to run in order"
+        ),
+        agent=agent,
+    )
+
+
+def build_execute_task(problem, agent, triage_task):
+    return Task(
+        description=(
+            "Execute the action plan from triage.\n\n"
+            "For each relevant template:\n"
+            "1. Launch it by ID\n"
+            "2. Poll job status until complete\n"
+            "3. Read job output\n"
+            "4. Summarize what happened in 2-3 lines\n\n"
+            "If no templates were relevant, state that no action was taken."
+        ),
+        expected_output=(
+            "Plain text only, no emojis. Under 10 lines:\n"
+            "One line per job: template name, job ID, status (success/failed), one-line result\n"
+            "Final line: overall outcome"
+        ),
+        agent=agent,
+        context=[triage_task],
+    )
+
+
+def build_report_task(problem, agent, context_tasks):
+    return Task(
+        description=(
+            "Write a concise incident summary based on triage and execution.\n"
+            "No emojis, no tables, plain text only.\n\n"
+            "Format (keep under 10 lines total):\n"
+            "PROBLEM: one line\n"
+            "TRIAGE: what was found (1-2 lines)\n"
+            "ACTIONS: what was run and results (2-3 lines)\n"
+            "OUTCOME: resolved / not resolved (one line)\n"
+            "RECOMMENDATION: one actionable suggestion"
+        ),
+        expected_output=(
+            "Plain text only, no emojis, no tables. Under 10 lines:\n"
+            "PROBLEM: one line\n"
+            "TRIAGE: 1-2 lines\n"
+            "ACTIONS: 2-3 lines\n"
+            "OUTCOME: resolved or not (one line)\n"
+            "RECOMMENDATION: one line"
+        ),
+        agent=agent,
+        context=context_tasks,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step runners
+# ---------------------------------------------------------------------------
+def print_stage(label, result):
+    print(f"\n--- {label} ---")
+    print(result)
+    print()
+
+
+def run_triage(problem):
+    agent = make_triage_agent()
+    task = build_triage_task(problem, agent)
+    crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=VERBOSE)
+    return crew.kickoff()
+
+
+def run_execute(problem):
+    triage_agent = make_triage_agent()
+    triage_task = build_triage_task(problem, triage_agent)
+    triage_crew = Crew(agents=[triage_agent], tasks=[triage_task],
+                       process=Process.sequential, verbose=VERBOSE)
+    triage_result = triage_crew.kickoff()
+    print_stage("TRIAGE", triage_result)
+
+    executor_agent = make_executor_agent()
+    execute_task = build_execute_task(problem, executor_agent, triage_task)
+    execute_crew = Crew(agents=[executor_agent], tasks=[execute_task],
+                        process=Process.sequential, verbose=VERBOSE)
+    return execute_crew.kickoff()
+
+
+def run_report(problem):
+    triage_agent = make_triage_agent()
+    triage_task = build_triage_task(problem, triage_agent)
+    triage_crew = Crew(agents=[triage_agent], tasks=[triage_task],
+                       process=Process.sequential, verbose=VERBOSE)
+    triage_result = triage_crew.kickoff()
+    print_stage("TRIAGE", triage_result)
+
+    executor_agent = make_executor_agent()
+    execute_task = build_execute_task(problem, executor_agent, triage_task)
+    execute_crew = Crew(agents=[executor_agent], tasks=[execute_task],
+                        process=Process.sequential, verbose=VERBOSE)
+    execute_result = execute_crew.kickoff()
+    print_stage("EXECUTION", execute_result)
+
+    reporter_agent = make_reporter_agent()
+    report_task = build_report_task(problem, reporter_agent, [triage_task, execute_task])
+    report_crew = Crew(agents=[reporter_agent], tasks=[report_task],
+                       process=Process.sequential, verbose=VERBOSE)
+    return report_crew.kickoff()
+
+
+STEPS = {
+    "triage": run_triage,
+    "execute": run_execute,
+    "report": run_report,
+    "all": run_report,
+}
+
+
+# ---------------------------------------------------------------------------
+# Break helper (direct API for simulating incident only)
+# ---------------------------------------------------------------------------
+def break_apache():
+    """Use direct API to break Apache -- only used for demo setup."""
+    import requests
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    s = requests.Session()
+    s.verify = False
+    s.auth = (AAP_USERNAME, AAP_PASSWORD)
+    s.headers["Content-Type"] = "application/json"
+
+    r = s.get(
+        f"{AAP_BASE_URL}/api/controller/v2/job_templates/",
+        params={"search": "Break Apache"}
+    )
+    r.raise_for_status()
+    for t in r.json().get("results", []):
+        if t["name"] == "Break Apache":
+            job = s.post(
+                f"{AAP_BASE_URL}/api/controller/v2/job_templates/{t['id']}/launch/"
+            ).json()
+            end = time.time() + 120
+            while time.time() < end:
+                j = s.get(f"{AAP_BASE_URL}/api/controller/v2/jobs/{job['id']}/").json()
+                if j["status"] in ("successful", "failed", "error", "canceled"):
+                    return j["status"]
+                time.sleep(5)
+            return "timeout"
+    return "template_not_found"
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(
+        description="Agentic AIOps: AI-driven incident response using AAP via MCP"
+    )
+    parser.add_argument(
+        "step",
+        choices=["triage", "execute", "report", "all"],
+        help="Which agent(s) to run: triage, execute (triage+execute), report (all three), or all"
+    )
+    parser.add_argument(
+        "problem",
+        nargs="?",
+        default="Apache web server is down on node1",
+        help="Problem description (default: 'Apache web server is down on node1')"
+    )
+    parser.add_argument(
+        "--break-first", action="store_true",
+        help="Run 'Break Apache' template first to simulate an incident"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Show full CrewAI agent reasoning and tool calls"
+    )
+    args = parser.parse_args()
+
+    global VERBOSE
+    VERBOSE = args.verbose
+
+    # Suppress SSL warnings for lab environment
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    print(f"\n{'='*60}")
+    print(f"AGENTIC AIOPS - {args.step.upper()}")
+    print(f"{'='*60}")
+    print(f"LLM:   {LLM_MODEL} via proxy at {LLM_BASE_URL}")
+    print(f"Tools: AAP MCP server at {MCP_BASE_URL}")
+
+    if args.break_first:
+        print(f"\nSimulating incident...")
+        status = break_apache()
+        if status == "successful":
+            print("Done. Apache is now broken.\n")
+        elif status == "template_not_found":
+            print("WARNING: 'Break Apache' template not found.\n")
+        else:
+            print(f"WARNING: Break job ended with status: {status}\n")
+
+    print(f"\nProblem: {args.problem}")
+    print(f"{'='*60}\n")
+
+    # Configure CrewAI to use our LLM proxy
+    os.environ["ANTHROPIC_API_KEY"] = LLM_API_KEY
+    os.environ["ANTHROPIC_BASE_URL"] = LLM_BASE_URL
+
+    runner = STEPS[args.step]
+    result = runner(args.problem)
+
+    print(f"\n{'='*60}")
+    print("RESULT")
+    print(f"{'='*60}\n")
+    print(result)
+
+
+if __name__ == "__main__":
+    main()

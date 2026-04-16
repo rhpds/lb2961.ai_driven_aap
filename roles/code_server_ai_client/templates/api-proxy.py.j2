@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+# Multi-purpose API proxy for AI coding clients:
+# - Port {{ ai_client_proxy_port }}: Anthropic proxy (strips unsupported beta headers)
+# - Port {{ ai_client_proxy_gemini_port }}: Gemini translation proxy (Google API -> OpenAI)
+# Credentials are read from environment variables (set via systemd EnvironmentFile).
+
+import json
+import os
+import re
+from aiohttp import web, ClientSession, TCPConnector
+
+UPSTREAM = os.environ["AI_PROXY_UPSTREAM_URL"]
+API_KEY = os.environ["AI_PROXY_API_KEY"]
+BLOCKED_BETAS = {{ ai_client_proxy_blocked_betas | to_json }}
+ANTHROPIC_PORT = {{ ai_client_proxy_port }}
+GEMINI_PORT = {{ ai_client_proxy_gemini_port }}
+GEMINI_MODEL = "{{ ai_client_proxy_gemini_model }}"
+
+GEMINI_RE = re.compile(
+    r"v1beta/models/([^:]+):(generateContent|streamGenerateContent)"
+)
+
+
+# -------------------------------------------------------------------
+# Anthropic proxy: strip unsupported beta headers, pass through rest
+# -------------------------------------------------------------------
+
+async def anthropic_proxy(request):
+    path = request.match_info["path"]
+    qs = request.query_string
+    url = f"{UPSTREAM}/{path}{'?' + qs if qs else ''}"
+
+    headers = {}
+    for k, v in request.headers.items():
+        low = k.lower()
+        if low in ("host", "transfer-encoding", "content-length"):
+            continue
+        if low == "anthropic-beta":
+            continue
+        headers[k] = v
+
+    body = await request.read()
+
+    # Clean request body for upstream compatibility (Vertex AI / MaaS)
+    if body and path.rstrip("/").endswith("/messages"):
+        try:
+            data = json.loads(body)
+            # Strip assistant message prefill
+            msgs = data.get("messages", [])
+            if msgs and msgs[-1].get("role") == "assistant":
+                msgs.pop()
+            # Strip fields unsupported by upstream
+            for field in ("context_management",):
+                data.pop(field, None)
+            body = json.dumps(data).encode()
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    async with ClientSession(connector=TCPConnector(ssl=False)) as s:
+        async with s.request(request.method, url, headers=headers, data=body) as resp:
+            out = web.StreamResponse(status=resp.status)
+            for k, v in resp.headers.items():
+                if k.lower() not in (
+                    "transfer-encoding", "content-encoding", "content-length"
+                ):
+                    out.headers[k] = v
+            await out.prepare(request)
+            async for chunk in resp.content.iter_any():
+                await out.write(chunk)
+            await out.write_eof()
+            return out
+
+
+# -------------------------------------------------------------------
+# Gemini proxy: translate Google Generative AI format to OpenAI format
+# -------------------------------------------------------------------
+
+def gemini_to_openai(body):
+    messages = []
+    for content in body.get("contents", []):
+        role = content.get("role", "user")
+        if role == "model":
+            role = "assistant"
+        parts = content.get("parts", [])
+        text = " ".join(p.get("text", "") for p in parts if "text" in p)
+        if text:
+            messages.append({"role": role, "content": text})
+    config = body.get("generationConfig", {})
+    return {
+        "model": GEMINI_MODEL,
+        "messages": messages,
+        "max_tokens": config.get("maxOutputTokens", 8000),
+    }
+
+
+def openai_to_gemini(body):
+    candidates = []
+    for choice in body.get("choices", []):
+        msg = choice.get("message", {})
+        candidates.append({
+            "content": {
+                "parts": [{"text": msg.get("content", "") or ""}],
+                "role": "model",
+            },
+            "finishReason": "STOP",
+        })
+    return {"candidates": candidates}
+
+
+async def gemini_proxy(request):
+    path = request.match_info["path"]
+    m = GEMINI_RE.search(path)
+    if not m:
+        return web.json_response(
+            {"error": f"Unknown path: /{path}"}, status=404
+        )
+
+    body = await request.json()
+    openai_req = gemini_to_openai(body)
+
+    async with ClientSession(connector=TCPConnector(ssl=False)) as s:
+        async with s.post(
+            f"{UPSTREAM}/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=openai_req,
+        ) as resp:
+            if resp.status != 200:
+                text = await resp.text()
+                return web.Response(status=resp.status, text=text)
+            openai_resp = await resp.json()
+            return web.json_response(openai_to_gemini(openai_resp))
+
+
+# -------------------------------------------------------------------
+# Run both proxies
+# -------------------------------------------------------------------
+
+async def start_servers():
+    anthropic_app = web.Application()
+    anthropic_app.router.add_route("*", "/{path:.*}", anthropic_proxy)
+
+    gemini_app = web.Application()
+    gemini_app.router.add_route("*", "/{path:.*}", gemini_proxy)
+
+    runner1 = web.AppRunner(anthropic_app)
+    runner2 = web.AppRunner(gemini_app)
+    await runner1.setup()
+    await runner2.setup()
+
+    site1 = web.TCPSite(runner1, "127.0.0.1", ANTHROPIC_PORT)
+    site2 = web.TCPSite(runner2, "127.0.0.1", GEMINI_PORT)
+    await site1.start()
+    await site2.start()
+
+
+if __name__ == "__main__":
+    import asyncio
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(start_servers())
+    loop.run_forever()

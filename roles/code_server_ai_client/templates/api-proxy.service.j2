@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=AI API proxy (Anthropic header filter + Gemini translation)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/ai-proxy/api-proxy.py
+EnvironmentFile=/opt/ai-proxy/credentials.env
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

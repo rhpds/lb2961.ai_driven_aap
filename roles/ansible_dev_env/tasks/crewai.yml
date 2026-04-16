@@ -1,0 +1,50 @@
+---
+- name: Install CrewAI packages in venv
+  become_user: "{{ student_name }}"
+  ansible.builtin.pip:
+    name: "{{ ansible_dev_env_crewai_pip_packages }}"
+    virtualenv: "{{ ansible_dev_env_venv_path }}"
+
+- name: Patch chromadb to use pysqlite3 (RHEL sqlite3 too old)
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_dev_env_venv_path }}/lib64/python3.12/site-packages/chromadb/__init__.py"
+    insertbefore: BOF
+    line: "import pysqlite3; import sys; sys.modules['sqlite3'] = pysqlite3"
+
+- name: Create CrewAI agent directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/agentic-aiops"
+    state: directory
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Deploy incident agent script
+  ansible.builtin.template:
+    src: incident_agent.py.j2
+    dest: "/home/{{ student_name }}/agentic-aiops/incident_agent.py"
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Set CrewAI MCP environment in .bashrc
+  ansible.builtin.blockinfile:
+    path: "/home/{{ student_name }}/.bashrc"
+    marker: "# {mark} CREWAI MCP ENV"
+    block: |
+      export MCP_BASE_URL="http://localhost:{{ ai_client_mcp_port | default('8448') }}"
+      export MCP_TOKEN="{{ ai_client_mcp_token | default('') }}"
+      export CREWAI_TRACING_ENABLED=false
+    owner: "{{ student_name }}"
+
+- name: Create CrewAI config directory
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/.crewai"
+    state: directory
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Disable CrewAI tracing preference
+  ansible.builtin.copy:
+    content: '{"tracing_disabled": true}'
+    dest: "/home/{{ student_name }}/.crewai/telemetry_preference.json"
+    owner: "{{ student_name }}"
+    mode: "0644"

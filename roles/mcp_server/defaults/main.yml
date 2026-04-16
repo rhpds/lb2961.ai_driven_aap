@@ -1,0 +1,15 @@
+---
+# MCP server container configuration
+mcp_server_enabled: false
+mcp_server_image: registry.redhat.io/ansible-automation-platform-tech-preview/mcp-server-rhel9:latest
+mcp_server_container_name: aap-mcp-server
+mcp_server_port: 8448
+
+# AAP connection (controller internal DNS)
+mcp_server_aap_url: ""
+mcp_server_ignore_cert_errors: "true"
+mcp_server_allow_write_operations: "true"
+
+# Registry credentials for pulling the image
+mcp_server_registry_username: "{{ registry_credentials_username }}"
+mcp_server_registry_password: "{{ registry_credentials_password }}"

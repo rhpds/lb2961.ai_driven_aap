@@ -1,0 +1,22 @@
+---
+ansible-navigator:
+  mode: stdout
+
+  execution-environment:
+    enabled: true
+    image: {{ ansible_dev_env_ee_image }}
+    container-engine: podman
+    pull:
+      policy: {{ ansible_dev_env_ee_pull_policy }}
+    environment-variables:
+      set:
+        ANSIBLE_FORCE_COLOR: "true"
+
+  logging:
+    level: warning
+    file: /tmp/ansible-navigator.log
+    append: true
+
+  playbook-artifact:
+    enable: true
+    save-as: "{playbook_dir}/artifacts/{playbook_name}-{time_stamp}.json"

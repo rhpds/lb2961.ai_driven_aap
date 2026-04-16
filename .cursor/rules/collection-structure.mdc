@@ -1,0 +1,49 @@
+---
+description: Ansible collection structure and role conventions for lb2961.ai_driven_aap
+alwaysApply: true
+---
+
+# Collection Structure
+
+This is an Ansible collection (`lb2961.ai_driven_aap`) with roles for deploying an AIOps workshop stack.
+
+## Role Layout
+
+Each role follows standard Ansible structure:
+```
+roles/<role_name>/
+  defaults/main.yml   # Default variables (overridden by agnosticv common.yaml)
+  tasks/main.yml      # Task logic
+  templates/           # Jinja2 templates (if needed)
+  meta/main.yml        # Role metadata
+```
+
+## Key Roles
+
+| Role | Purpose |
+|------|---------|
+| `splunk` | Splunk Enterprise in Podman with Cisco + EDA apps |
+| `kafka` | Apache Kafka in Podman (KRaft mode) |
+| `filebeat` | Filebeat shipping Apache logs to Kafka |
+| `winlogbeat` | Windows event logs to Kafka |
+| `mattermost` | Mattermost chat with webhooks |
+| `rhelai_model_serve` | InstructLab / RHEL AI model serving |
+| `mcp_server` | AAP MCP server container |
+| `lightspeed_mcp_server` | Red Hat Lightspeed MCP container |
+| `code_server_ai_client` | Claude Code or Continue.dev setup |
+| `continue_dev_config` | Continue.dev config with MCP servers |
+| `eda_project_sync_wait` | EDA project sync via AAP API |
+| `controller_firewall` | Opens firewall for EDA webhooks |
+| `gitea_create` | Gitea repo + PAT creation |
+
+## Custom Module
+
+`plugins/modules/yaml_edit.py` — edits YAML files by path while preserving structure. Requires `ruamel.yaml`. Used as `lb2961.ai_driven_aap.yaml_edit`.
+
+## Conventions
+
+- Containers run in **Podman** (not Docker)
+- Roles use `become: true` for privileged operations
+- Default passwords derive from `common_password` (set in agnosticv)
+- S3-hosted artifacts are downloaded at deploy time (not baked in)
+- Roles should be idempotent — safe to re-run

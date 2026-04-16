@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  role_name: lightspeed_mcp_server
+  description: Run the Red Hat Lightspeed MCP server container for Insights integration
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+dependencies: []

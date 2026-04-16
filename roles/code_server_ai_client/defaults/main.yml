@@ -1,0 +1,67 @@
+---
+# AI client to configure: "claude_code" or "continue_dev"
+ai_client: claude_code
+
+# -------------------------------------------------------------------
+# Common settings (shared across clients)
+# -------------------------------------------------------------------
+
+# nvm, Node.js, and mcp-remote versions
+ai_client_nvm_version: "0.40.1"
+ai_client_node_version: "20"
+mcp_remote_version: "0.1.38"
+
+# MCP server configuration for AAP integration
+ai_client_mcp_enabled: false
+ai_client_mcp_mode: standalone
+ai_client_mcp_port: 8448
+ai_client_mcp_gateway_host: ""
+ai_client_mcp_token: ""
+
+# Red Hat Lightspeed MCP (Insights: Advisor, Vulnerability, Remediation, etc.)
+# Port must match lightspeed_mcp_port in the lightspeed_mcp_server role
+ai_client_lightspeed_mcp_port: 8000
+ai_client_lightspeed_mcp_client_id: ""
+ai_client_lightspeed_mcp_client_secret: ""
+
+# -------------------------------------------------------------------
+# API proxy (strips unsupported headers for Vertex AI via MaaS)
+# -------------------------------------------------------------------
+ai_client_proxy_enabled: false
+ai_client_proxy_port: 4010
+ai_client_proxy_upstream_url: ""
+ai_client_proxy_upstream_api_key: ""
+ai_client_proxy_blocked_betas:
+  - prompt-caching-scope-2026-01-05
+  - redact-thinking-2026-02-12
+
+# Gemini translation proxy (Google Generative AI format -> OpenAI format)
+ai_client_proxy_gemini_port: 4011
+ai_client_proxy_gemini_model: gemini-2.5-pro
+
+# -------------------------------------------------------------------
+# Claude Code settings
+# -------------------------------------------------------------------
+claude_code_npm_package: "@anthropic-ai/claude-code"
+claude_code_version: "2.1.107"
+claude_code_api_key: ""
+claude_code_base_url: ""
+
+# Claude Code VS Code extension (Open VSX VSIX URL, falls back to marketplace ID)
+claude_code_vsix_url: "https://open-vsx.org/api/Anthropic/claude-code/linux-x64/{{ claude_code_version }}/file/Anthropic.claude-code-{{ claude_code_version }}@linux-x64.vsix"
+
+# Additional code-server extensions to ensure are installed (by marketplace ID).
+# These are installed via `code-server --install-extension <id>` which pulls
+# from Open VSX marketplace directly. Use as a fallback when VSIX URL downloads
+# fail (e.g., S3 or Open VSX 403 errors from sandbox IPs).
+ai_client_ensure_extensions:
+  - redhat.ansible
+  - redhat.vscode-yaml
+
+# -------------------------------------------------------------------
+# Continue.dev settings (for future use)
+# -------------------------------------------------------------------
+continue_dev_model_name: Gemini
+continue_dev_model_provider: gemini
+continue_dev_model_id: gemini-2.5-pro
+continue_dev_model_api_key: ""

@@ -52,18 +52,6 @@
     - "{{ mattermost_bleve_indexes_dir }}"
     - "{{ mattermost_postgres_data_dir }}"
 
-# - name: Create temporary directory for GitHub clone
-#   ansible.builtin.file:
-#     path: /tmp/mattermost_backup
-#     state: directory
-#     mode: '0755'
-
-# - name: Clone GitHub repository to get backup file
-#   ansible.builtin.git:
-#     repo: "https://{{ mattermost_github_repo }}"
-#     dest: /tmp/mattermost_backup
-#     force: true
-
 - name: Copy backup file to local path
   ansible.builtin.copy:
     src: "{{ mattermost_backup_file }}"
@@ -128,8 +116,13 @@
     state: started
 
 - name: Wait for PostgreSQL to be ready
-  ansible.builtin.pause:
-    seconds: 30
+  ansible.builtin.command:
+    cmd: podman exec mattermost-postgres pg_isready -U {{ mattermost_postgres_user }}
+  register: pg_ready
+  retries: 30
+  delay: 5
+  until: pg_ready.rc == 0
+  changed_when: false
 
 - name: Deploy Mattermost container
   containers.podman.podman_container:
@@ -140,11 +133,11 @@
     ports:
       - "8065:8065"
     env:
-      MM_SERVICESETTINGS_ENABLELOCALMODE: true
+      MM_SERVICESETTINGS_ENABLELOCALMODE: "true"
       MM_USERNAME: "{{ mattermost_postgres_user }}"
       MM_PASSWORD: "{{ mattermost_postgres_password }}"
       MM_DBNAME: "{{ mattermost_postgres_db }}"
-      MM_SQLSETTINGS_DATASOURCE: "postgres://{{ mattermost_postgres_user }}:{{ mattermost_postgres_password }}@mattermost-postgres:5432/{{ mattermost_postgres_db }}?sslmode=disable&connect_timeout=10"
+      MM_SQLSETTINGS_DATASOURCE: "postgres://{{ mattermost_postgres_user }}:{{ mattermost_postgres_password | urlencode }}@mattermost-postgres:5432/{{ mattermost_postgres_db }}?sslmode=disable&connect_timeout=10"
       MM_SERVICESETTINGS_SITEURL: "{{ mattermost_mm_site_url }}"
     volume:
       - "{{ mattermost_config_dir }}:/mattermost/config:z"
@@ -156,14 +149,55 @@
     state: started
 
 - name: Wait for Mattermost to be ready
-  ansible.builtin.pause:
-    seconds: 60
+  ansible.builtin.uri:
+    url: "http://localhost:8065/api/v4/system/ping"
+    return_content: true
+  register: mm_ping
+  retries: 30
+  delay: 10
+  until: mm_ping.status == 200
+  ignore_errors: true
+
+- name: Get Mattermost container logs on failure
+  ansible.builtin.command: podman logs --tail 30 mattermost
+  register: mm_logs
+  changed_when: false
+  when: mm_ping is failed
+
+- name: Show Mattermost logs and fail
+  ansible.builtin.fail:
+    msg: |
+      Mattermost failed to start. Container logs:
+      {{ mm_logs.stdout }}
+  when: mm_ping is failed
+
+- name: Verify Mattermost container is running before copy
+  ansible.builtin.command: podman inspect --format '{{ '{{' }}.State.Running{{ '}}' }}' mattermost
+  register: _mm_running
+  retries: 12
+  delay: 10
+  until: _mm_running.stdout == 'true'
+  changed_when: false
 
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
     src: "{{ mattermost_local_backup_path }}"
     dest: /tmp/backup.zip
     container: mattermost
+  retries: 6
+  delay: 15
+  register: copy_result
+  until: copy_result is not failed
+  ignore_errors: true
+
+- name: Copy backup file via podman cp (fallback)
+  ansible.builtin.command:
+    cmd: podman cp {{ mattermost_local_backup_path }} mattermost:/tmp/backup.zip
+  retries: 6
+  delay: 15
+  register: copy_fallback
+  until: copy_fallback.rc == 0
+  when: copy_result is failed
 
 - name: Configure Mattermost after deployment
   block:
@@ -171,29 +205,31 @@
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local user create --email admin@ansible.com --username admin --password {{ mattermost_admin_password }} --system-admin"
-      register: import_result
 
     - name: Import mattermost config
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local import process --bypass-upload /tmp/backup.zip"
 
-    - name: Create mattermost admin
+    - name: Wait for import to process
+      ansible.builtin.pause:
+        seconds: 60
+
+    - name: Create ansibleadmin user
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
-      register: import_result
 
     - name: Add admin to team
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local team add automators ansibleadmin@ansible.com"
 
-    - name: Wait for Mattermost to be ready
+    - name: Wait for import to settle
       ansible.builtin.pause:
-        seconds: 30
+        seconds: 45
 
-    - name: Get Mattermost Channel ID
+    - name: List channels in automators team
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local channel list automators"
