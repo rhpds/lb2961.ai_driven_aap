@@ -199,6 +199,15 @@
   until: copy_fallback.rc == 0
   when: copy_result is failed
 
+- name: Wait for Mattermost local socket
+  ansible.builtin.command:
+    cmd: podman exec mattermost test -S /var/tmp/mattermost_local.socket
+  register: _mm_socket
+  retries: 10
+  delay: 5
+  until: _mm_socket.rc == 0
+  changed_when: false
+
 - name: Configure Mattermost after deployment
   block:
     - name: Create mattermost admin
