@@ -152,6 +152,16 @@
   delay: 15
   register: copy_result
   until: copy_result is not failed
+  ignore_errors: true
+
+- name: Copy backup file via podman cp (fallback)
+  ansible.builtin.command:
+    cmd: podman cp {{ mattermost_local_backup_path }} mattermost:/tmp/backup.zip
+  retries: 6
+  delay: 15
+  register: copy_fallback
+  until: copy_fallback.rc == 0
+  when: copy_result is failed
 
 - name: Configure Mattermost after deployment
   block:
