@@ -65,10 +65,46 @@
     state: present
   register: network_result
 
+- name: Pull PostgreSQL image (with fallback)
+  block:
+    - name: Pull PostgreSQL image from primary registry
+      ansible.builtin.command:
+        cmd: podman pull {{ mattermost_postgres_image }}
+      register: _pg_pull
+      changed_when: "'Storing' in _pg_pull.stdout or 'Writing' in _pg_pull.stdout"
+  rescue:
+    - name: Pull PostgreSQL image from fallback registry
+      ansible.builtin.command:
+        cmd: podman pull {{ mattermost_postgres_image_fallback }}
+      register: _pg_pull_fallback
+      changed_when: "'Storing' in _pg_pull_fallback.stdout or 'Writing' in _pg_pull_fallback.stdout"
+
+    - name: Tag fallback PostgreSQL image as primary
+      ansible.builtin.command:
+        cmd: podman tag {{ mattermost_postgres_image_fallback }} {{ mattermost_postgres_image }}
+
+- name: Pull Mattermost image (with fallback)
+  block:
+    - name: Pull Mattermost image from primary registry
+      ansible.builtin.command:
+        cmd: podman pull {{ mattermost_image }}
+      register: _mm_pull
+      changed_when: "'Storing' in _mm_pull.stdout or 'Writing' in _mm_pull.stdout"
+  rescue:
+    - name: Pull Mattermost image from fallback registry
+      ansible.builtin.command:
+        cmd: podman pull {{ mattermost_image_fallback }}
+      register: _mm_pull_fallback
+      changed_when: "'Storing' in _mm_pull_fallback.stdout or 'Writing' in _mm_pull_fallback.stdout"
+
+    - name: Tag fallback Mattermost image as primary
+      ansible.builtin.command:
+        cmd: podman tag {{ mattermost_image_fallback }} {{ mattermost_image }}
+
 - name: Deploy PostgreSQL container
   containers.podman.podman_container:
     name: mattermost-postgres
-    image: docker.io/library/postgres:13
+    image: "{{ mattermost_postgres_image }}"
     restart_policy: always
     network: "{{ mattermost_container_network }}"
     env:
@@ -91,7 +127,7 @@
 - name: Deploy Mattermost container
   containers.podman.podman_container:
     name: mattermost
-    image: "docker.io/mattermost/mattermost-team-edition:{{ mattermost_version }}"
+    image: "{{ mattermost_image }}"
     restart_policy: always
     network: "{{ mattermost_container_network }}"
     ports:
