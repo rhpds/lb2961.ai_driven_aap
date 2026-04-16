@@ -23,6 +23,7 @@ ansible_dev_env_ee_pull_policy: missing
 ansible_dev_env_navigator_config_dest: "/home/{{ student_name }}/ansible-navigator.yml"
 
 # Git configuration
+ansible_dev_env_git_clone_enabled: false
 ansible_dev_env_gitea_hostname: "gitea-{{ subdomain_base }}"
 ansible_dev_env_git_repo_name: lightspeed_playbooks
 

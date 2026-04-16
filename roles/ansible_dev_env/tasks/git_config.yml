@@ -18,44 +18,46 @@
     owner: "{{ student_name }}"
     mode: "0600"
 
-- name: Wait for Gitea repo to be ready
-  ansible.builtin.uri:
-    url: "https://{{ ansible_dev_env_gitea_hostname }}/api/v1/repos/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}"
-    url_username: "{{ student_name }}"
-    url_password: "{{ common_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    timeout: 10
-  retries: 10
-  delay: 10
-  register: _repo_check
-  until: _repo_check.status == 200
-  failed_when: false
+- name: Clone Gitea repo
+  when: ansible_dev_env_git_clone_enabled | bool
+  block:
+    - name: Wait for Gitea repo to be ready
+      ansible.builtin.uri:
+        url: "https://{{ ansible_dev_env_gitea_hostname }}/api/v1/repos/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}"
+        url_username: "{{ student_name }}"
+        url_password: "{{ common_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        timeout: 10
+      retries: 10
+      delay: 10
+      register: _repo_check
+      until: _repo_check.status == 200
+      failed_when: false
 
-- name: Clone lightspeed_playbooks repo
-  become_user: "{{ student_name }}"
-  ansible.builtin.command:
-    cmd: >-
-      git clone https://{{ student_name }}:{{ common_password | urlencode }}@{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git
-      {{ ansible_dev_env_repo_path }}
-    creates: "{{ ansible_dev_env_repo_path }}"
-  environment:
-    GIT_SSL_NO_VERIFY: "true"
-    GIT_TERMINAL_PROMPT: "0"
-    HOME: "/home/{{ student_name }}"
-  timeout: 60
-  retries: 5
-  delay: 30
-  register: _git_clone
-  until: _git_clone.rc == 0
-  when: _repo_check.status | default(0) == 200
-  ignore_errors: true
-  no_log: true
+    - name: Clone lightspeed_playbooks repo
+      become_user: "{{ student_name }}"
+      ansible.builtin.command:
+        cmd: >-
+          git clone https://{{ student_name }}:{{ common_password | urlencode }}@{{ ansible_dev_env_gitea_hostname }}/{{ student_name }}/{{ ansible_dev_env_git_repo_name }}.git
+          {{ ansible_dev_env_repo_path }}
+        creates: "{{ ansible_dev_env_repo_path }}"
+      environment:
+        GIT_SSL_NO_VERIFY: "true"
+        GIT_TERMINAL_PROMPT: "0"
+        HOME: "/home/{{ student_name }}"
+      timeout: 60
+      retries: 5
+      delay: 30
+      register: _git_clone
+      until: _git_clone.rc == 0
+      when: _repo_check.status | default(0) == 200
+      ignore_errors: true
+      no_log: true
 
-- name: Create repo directory if clone failed
+- name: Ensure repo directory exists
   ansible.builtin.file:
     path: "{{ ansible_dev_env_repo_path }}"
     state: directory
     owner: "{{ student_name }}"
     mode: "0755"
-  when: _git_clone is failed or _git_clone is skipped
