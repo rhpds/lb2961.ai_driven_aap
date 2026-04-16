@@ -1,5 +1,9 @@
 ---
 mattermost_version: 10.12
+mattermost_postgres_image: docker.io/library/postgres:13
+mattermost_postgres_image_fallback: quay.io/acme_corp/postgres:13
+mattermost_image: "docker.io/mattermost/mattermost-team-edition:{{ mattermost_version }}"
+mattermost_image_fallback: "quay.io/acme_corp/mattermost-team-edition:{{ mattermost_version }}"
 mattermost_data_dir: /opt/mattermost/data
 mattermost_config_dir: /opt/mattermost/config
 mattermost_logs_dir: /opt/mattermost/logs
