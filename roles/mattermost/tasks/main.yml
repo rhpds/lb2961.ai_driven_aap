@@ -135,13 +135,21 @@
       {{ mm_logs.stdout }}
   when: mm_ping is failed
 
+- name: Verify Mattermost container is running before copy
+  ansible.builtin.command: podman inspect --format '{{ '{{' }}.State.Running{{ '}}' }}' mattermost
+  register: _mm_running
+  retries: 12
+  delay: 10
+  until: _mm_running.stdout == 'true'
+  changed_when: false
+
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
     src: "{{ mattermost_local_backup_path }}"
     dest: /tmp/backup.zip
     container: mattermost
-  retries: 3
-  delay: 10
+  retries: 6
+  delay: 15
   register: copy_result
   until: copy_result is not failed
 
