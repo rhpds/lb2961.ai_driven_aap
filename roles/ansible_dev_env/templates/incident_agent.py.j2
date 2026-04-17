@@ -386,7 +386,7 @@ def break_apache():
     )
     r.raise_for_status()
     for t in r.json().get("results", []):
-        if t["name"] == "Break Apache":
+        if "Break Apache" in t["name"]:
             job = s.post(
                 f"{AAP_BASE_URL}/api/controller/v2/job_templates/{t['id']}/launch/"
             ).json()
