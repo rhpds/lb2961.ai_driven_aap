@@ -207,6 +207,9 @@ def make_executor_agent():
             "identified as relevant. After launching a job, check its status "
             "before reading output. If no suitable templates exist, do not run "
             "unrelated ones. "
+            "CRITICAL: Never launch the same template more than once. If a "
+            "remediation template succeeds, do NOT run it again. Your sequence "
+            "is: diagnose once, fix once, verify once. Three steps maximum. "
             "Never use emojis. Use plain text only. Keep output brief and direct."
         ),
         tools=all_tools,
@@ -260,11 +263,12 @@ def build_execute_task(problem, agent, triage_task):
     return Task(
         description=(
             "Execute the action plan from triage.\n\n"
-            "For each relevant template:\n"
-            "1. Launch it by ID\n"
-            "2. Poll job status until complete\n"
-            "3. Read job output\n"
-            "4. Summarize what happened in 2-3 lines\n\n"
+            "Follow this exact sequence (3 steps max):\n"
+            "1. Run the diagnostic template, poll until complete, read output\n"
+            "2. Run the remediation template, poll until complete, read output\n"
+            "3. Run the diagnostic template ONE MORE TIME to verify the fix\n\n"
+            "STOP after step 3. Do NOT re-run any template you already ran.\n"
+            "Never launch the same remediation template twice.\n\n"
             "If no templates were relevant, state that no action was taken."
         ),
         expected_output=(
