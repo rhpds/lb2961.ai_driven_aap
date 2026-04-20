@@ -8,12 +8,30 @@ filebeat.inputs:
     fields_under_root: true
     scan_frequency: 10s
 
+  - type: journald
+    enabled: {{ filebeat_journald_enabled | default('true') }}
+    id: systemd-services
+    include_matches:
+{% for unit in filebeat_journald_units | default(['crond.service']) %}
+      - _SYSTEMD_UNIT={{ unit }}
+{% endfor %}
+    fields:
+      type: systemd_service
+    fields_under_root: true
+
 processors:
   - add_host_metadata: ~
 
 output.kafka:
   hosts: ["{{ filebeat_kafka_brokers }}"]
-  topic: "{{ filebeat_kafka_topic }}"
+  topic: '%{[type]}'
+  topics:
+    - topic: "{{ filebeat_kafka_topic }}"
+      when.equals:
+        type: apache_httpd
+    - topic: "{{ filebeat_kafka_topic_systemd | default('systemd-service-logs') }}"
+      when.equals:
+        type: systemd_service
   codec.json:
     pretty: false
   required_acks: 1
