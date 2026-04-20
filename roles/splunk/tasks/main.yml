@@ -124,6 +124,19 @@
   retries: 20
   delay: 5
 
+- name: Create Splunk TCP data inputs
+  containers.podman.podman_container_exec:
+    name: "{{ splunk_container_name }}"
+    command: >-
+      curl -sk -u admin:{{ splunk_password }}
+      https://localhost:8089/services/data/inputs/tcp/raw
+      -d name={{ item.port }}
+      -d sourcetype={{ item.sourcetype }}
+      -d index={{ item.index }}
+  become: true
+  loop: "{{ splunk_data_inputs }}"
+  when: splunk_data_inputs | default([]) | length > 0
+
 - name: Generate systemd service file for Splunk container
   containers.podman.podman_generate_systemd:
     name: "{{ splunk_container_name }}"
