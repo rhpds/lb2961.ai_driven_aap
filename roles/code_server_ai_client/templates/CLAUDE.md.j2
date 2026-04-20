@@ -1,0 +1,41 @@
+# Lab Environment
+
+## AAP (Ansible Automation Platform)
+- Use the `mcp__aap-*` MCP tools for all AAP operations — they automatically target the correct controller URL and use the right auth token for this student's environment (both are pre-configured per student)
+- For operations not exposed by MCP tools (e.g. triggering a project sync), derive the URL and token dynamically:
+  ```bash
+  BASE_URL=$(sudo podman inspect aap-mcp-server | python3 -c "import json,sys; e=json.load(sys.stdin)[0]['Config']['Env']; print(next(x.split('=',1)[1] for x in e if x.startswith('BASE_URL=')))")
+  TOKEN=$(python3 -c "import json; cfg=json.load(open('/home/{{ student_name }}/.claude.json')); args=cfg['mcpServers']['aap-job-mgmt']['args']; i=args.index('--header')+1; print(args[i].split('Bearer ')[1])")
+  curl -sk -X POST "$BASE_URL/api/controller/v2/projects/Lightspeed-Playbooks++Default/update/" -H "Authorization: Bearer $TOKEN"
+  ```
+- The **Lightspeed-Playbooks** project in AAP syncs from the student's Gitea repo (named_url: `Lightspeed-Playbooks++Default`)
+- Gitea SCM credential in AAP is named **"Gitea"** (named_url: `Gitea++Source Control+scm++Default`)
+- The **Remediation - SSH LoginGraceTime** job template runs `remediation.yml` against lab-inventory using lab-credential (named_url: `Remediation - SSH LoginGraceTime++Default`)
+- After pushing a playbook to Gitea, sync the project before running the JT
+- When creating a job template via the API, credentials must be attached via a **separate POST** after creation (they cannot be set in the initial create payload). Look up the credential ID by name — do not hardcode it:
+  ```bash
+  CRED_ID=$(curl -sk "$BASE_URL/api/controller/v2/credentials/?name=lab-credential&credential_type__kind=ssh" \
+    -H "Authorization: Bearer $TOKEN" | python3 -c "import json,sys; print(json.load(sys.stdin)['results'][0]['id'])")
+  curl -sk -X POST "$BASE_URL/api/controller/v2/job_templates/Remediation - SSH LoginGraceTime++Default/credentials/" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"id\": $CRED_ID}"
+  ```
+  **lab-credential** is the Machine type credential (cloud-user + SSH key + sudo privilege escalation)
+
+## Git
+- The git hosting platform for this lab is **Gitea** — the URL is pre-configured in `~/.git-credentials` (no need to ask the student)
+- The student's repository is `lightspeed_playbooks` under the `{{ student_name }}` account on Gitea
+- Git credentials are pre-configured in `~/.git-credentials` — no need to ask the student for a username, password, or URL
+- The remote URL and Gitea hostname can be derived from `~/.git-credentials` if needed: `grep -o 'https://[^@]*@[^/]*' ~/.git-credentials | head -1`
+- The credential helper is set to `store`, so `git push` will authenticate automatically
+- Default branch on the remote is `main`
+
+## Pushing files to Gitea
+When a student asks to push a file to git:
+1. If `/home/{{ student_name }}` is not yet a git repo, run `git init` and set the remote
+2. Stage and commit the file
+3. Pull with rebase (`git pull --rebase origin main`) before pushing to avoid conflicts
+4. Push to `origin main`
+
+No need to ask the student for credentials, the remote URL, or how git is set up — it is all pre-configured.
