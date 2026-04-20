@@ -67,6 +67,13 @@
     owner: "{{ student_name }}"
     mode: "0600"
 
+- name: Place ~/CLAUDE.md project instructions
+  ansible.builtin.template:
+    src: CLAUDE.md.j2
+    dest: "/home/{{ student_name }}/CLAUDE.md"
+    owner: "{{ student_name }}"
+    mode: "0644"
+
 - name: Set Claude Code environment in .bashrc
   ansible.builtin.blockinfile:
     path: "/home/{{ student_name }}/.bashrc"
