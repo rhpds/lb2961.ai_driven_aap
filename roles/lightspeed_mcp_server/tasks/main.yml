@@ -16,7 +16,7 @@
     image: "{{ lightspeed_mcp_image }}"
     state: started
     restart_policy: always
-    command: http --host 0.0.0.0 --all-tools
+    command: "http --host 0.0.0.0{{ ' --all-tools' if lightspeed_mcp_all_tools | bool else '' }}"
     env:
       LIGHTSPEED_CLIENT_ID: "{{ lightspeed_mcp_client_id }}"
       LIGHTSPEED_CLIENT_SECRET: "{{ lightspeed_mcp_client_secret }}"
@@ -32,3 +32,20 @@
   retries: 12
   delay: 5
   until: _lightspeed_health is not failed
+  ignore_errors: true
+
+- name: Get Lightspeed MCP container logs on failure
+  when: _lightspeed_health is failed
+  become: true
+  ansible.builtin.command: podman logs --tail 50 {{ lightspeed_mcp_container_name }}
+  register: _lightspeed_logs
+  changed_when: false
+  failed_when: false
+
+- name: Show Lightspeed MCP logs and fail
+  when: _lightspeed_health is failed
+  ansible.builtin.fail:
+    msg: |
+      Lightspeed MCP server failed to start. Container logs:
+      {{ _lightspeed_logs.stdout | default('no stdout') }}
+      {{ _lightspeed_logs.stderr | default('no stderr') }}
