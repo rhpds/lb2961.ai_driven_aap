@@ -39,3 +39,8 @@ When a student asks to push a file to git:
 4. Push to `origin main`
 
 No need to ask the student for credentials, the remote URL, or how git is set up — it is all pre-configured.
+
+## Red Hat Vulnerability API
+The `mcp__lightspeed-mcp__vulnerability__get_system_cves` tool does NOT support `advisory_available` or `impact` filtering — these parameters exist in the underlying API but are not exposed by the MCP tool wrapper. The console UI defaults to `advisory_available=true`, so per-host CVE counts shown there will be much lower than what the MCP tool returns (which is unfiltered and includes CVEs without advisories).
+
+Workaround: Use `get_cves` (account-level) with `advisory_available="true"` and `impact="5,7"` (5=Important, 7=Critical) to get the filtered list, then use `get_cve_systems` per CVE to confirm which specific hosts are affected.
