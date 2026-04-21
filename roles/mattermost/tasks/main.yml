@@ -171,14 +171,6 @@
       {{ mm_logs.stdout }}
   when: mm_ping is failed
 
-- name: Verify Mattermost container is running before copy
-  ansible.builtin.command: podman inspect --format '{{ '{{' }}.State.Running{{ '}}' }}' mattermost
-  register: _mm_running
-  retries: 12
-  delay: 10
-  until: _mm_running.stdout == 'true'
-  changed_when: false
-
 - name: Copy backup file into Mattermost container
   containers.podman.podman_container_copy:
     src: "{{ mattermost_local_backup_path }}"
@@ -220,9 +212,15 @@
         name: mattermost
         command: "mmctl --local import process --bypass-upload /tmp/backup.zip"
 
-    - name: Wait for import to process
-      ansible.builtin.pause:
-        seconds: 60
+    - name: Wait for import to complete
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local import job list"
+      register: _import_status
+      retries: 12
+      delay: 5
+      until: "'pending' not in _import_status.stdout"
+      changed_when: false
 
     - name: Create ansibleadmin user
       containers.podman.podman_container_exec:
@@ -233,10 +231,6 @@
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local team add automators ansibleadmin@ansible.com"
-
-    - name: Wait for import to settle
-      ansible.builtin.pause:
-        seconds: 45
 
     - name: List channels in automators team
       containers.podman.podman_container_exec:
