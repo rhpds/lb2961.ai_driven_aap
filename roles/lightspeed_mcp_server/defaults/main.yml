@@ -5,6 +5,7 @@
 lightspeed_mcp_image: ghcr.io/redhatinsights/red-hat-lightspeed-mcp:latest
 lightspeed_mcp_container_name: lightspeed-mcp-server
 lightspeed_mcp_port: 8000
+lightspeed_mcp_all_tools: true
 
 # Service account credentials from console.redhat.com
 # (Settings → Service Accounts)
