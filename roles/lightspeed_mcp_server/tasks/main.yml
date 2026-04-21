@@ -16,7 +16,7 @@
     image: "{{ lightspeed_mcp_image }}"
     state: started
     restart_policy: always
-    command: "http --host 0.0.0.0{{ ' --all-tools' if lightspeed_mcp_all_tools | bool else '' }}"
+    command: "{{ '--all-tools ' if lightspeed_mcp_all_tools | bool else '' }}http --host 0.0.0.0"
     env:
       LIGHTSPEED_CLIENT_ID: "{{ lightspeed_mcp_client_id }}"
       LIGHTSPEED_CLIENT_SECRET: "{{ lightspeed_mcp_client_secret }}"
