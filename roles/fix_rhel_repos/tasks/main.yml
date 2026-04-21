@@ -3,11 +3,20 @@
 # The redhat.repo references katello-server-ca.pem as sslcacert, but that cert
 # doesn't sign the Red Hat CDN. Replacing it with redhat-uep.pem (the actual
 # CDN CA) fixes DNF repo metadata downloads without altering the repo file.
+#
+# The file is made immutable (chattr +i) to prevent rhsmcertd from overwriting
+# it at boot when it times out trying to reach the old Satellite server.
 
 - name: Check if katello-server-ca.pem exists
   ansible.builtin.stat:
     path: /etc/rhsm/ca/katello-server-ca.pem
   register: _katello_ca
+
+- name: Remove immutable flag before replacing (in case previously set)
+  when: _katello_ca.stat.exists
+  ansible.builtin.command: chattr -i /etc/rhsm/ca/katello-server-ca.pem
+  failed_when: false
+  changed_when: false
 
 - name: Replace katello-server-ca.pem with redhat-uep.pem
   when: _katello_ca.stat.exists
@@ -16,6 +25,11 @@
     dest: /etc/rhsm/ca/katello-server-ca.pem
     remote_src: true
     backup: true
+
+- name: Make katello-server-ca.pem immutable so rhsm cannot overwrite it
+  when: _katello_ca.stat.exists
+  ansible.builtin.command: chattr +i /etc/rhsm/ca/katello-server-ca.pem
+  changed_when: true
 
 - name: Clear DNF cache after CA cert swap
   when: _katello_ca.stat.exists
