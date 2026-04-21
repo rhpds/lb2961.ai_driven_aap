@@ -1,0 +1,24 @@
+---
+# Fix RHEL repo SSL CA cert for nodes previously registered to Satellite/Katello.
+# The redhat.repo references katello-server-ca.pem as sslcacert, but that cert
+# doesn't sign the Red Hat CDN. Replacing it with redhat-uep.pem (the actual
+# CDN CA) fixes DNF repo metadata downloads without altering the repo file.
+
+- name: Check if katello-server-ca.pem exists
+  ansible.builtin.stat:
+    path: /etc/rhsm/ca/katello-server-ca.pem
+  register: _katello_ca
+
+- name: Replace katello-server-ca.pem with redhat-uep.pem
+  when: _katello_ca.stat.exists
+  ansible.builtin.copy:
+    src: /etc/rhsm/ca/redhat-uep.pem
+    dest: /etc/rhsm/ca/katello-server-ca.pem
+    remote_src: true
+    backup: true
+
+- name: Verify DNF repo metadata is accessible
+  ansible.builtin.command: dnf check-update -q
+  register: _dnf_check
+  failed_when: _dnf_check.rc != 0 and _dnf_check.rc != 100
+  changed_when: false

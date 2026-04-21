@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  role_name: fix_rhel_repos
+  description: Fix RHEL repo CA cert on nodes previously registered to Satellite/Katello
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions:
+        - "9"
