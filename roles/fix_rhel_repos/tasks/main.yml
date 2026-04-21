@@ -1,15 +1,17 @@
 ---
-# Fix RHEL repo SSL CA cert for nodes previously registered to Satellite/Katello.
-# The redhat.repo references katello-server-ca.pem as sslcacert, but that cert
-# doesn't sign the Red Hat CDN. Replacing it with redhat-uep.pem (the actual
-# CDN CA) fixes DNF repo metadata downloads without altering the repo file.
+# Fix RHEL repos on nodes previously registered to Satellite/Katello.
 #
-# The file is made immutable (chattr +i) to prevent rhsmcertd from overwriting
-# it at boot when it times out trying to reach the old Satellite server.
+# These nodes have two problems:
+#   1. katello-server-ca.pem doesn't sign the Red Hat CDN
+#   2. The node entitlements may be Satellite-specific and invalid for CDN
 #
-# Satellite also leaves behind repos the node isn't entitled to on the CDN
-# (supplementary, AAP, discovery, etc.) — we disable everything except
-# baseos and appstream, which are the only repos the lab needs.
+# Since the `common` role (which needs RHEL repos) never runs on nodes —
+# only on bastions — and the only DNF install on nodes is filebeat from
+# the Elastic repo, we disable ALL subscription-manager repos and let
+# role-specific repos (e.g. elastic.repo) work unobstructed.
+#
+# We also replace the CA cert and make it immutable as a belt-and-suspenders
+# measure in case any role re-enables RHEL repos later.
 
 - name: Check if katello-server-ca.pem exists
   ansible.builtin.stat:
@@ -35,19 +37,8 @@
   ansible.builtin.command: chattr +i /etc/rhsm/ca/katello-server-ca.pem
   changed_when: true
 
-- name: Get list of enabled repos
-  ansible.builtin.command: subscription-manager repos --list-enabled
-  register: _enabled_repos
-  changed_when: false
-  failed_when: false
-
-- name: Disable non-essential repos leftover from Satellite
-  ansible.builtin.shell: |
-    subscription-manager repos --list-enabled \
-      | grep 'Repo ID:' \
-      | awk '{print $3}' \
-      | grep -v -E '^rhel-9-for-x86_64-(baseos|appstream)-rpms$' \
-      | xargs -r -I{} subscription-manager repos --disable={}
+- name: Disable all subscription-manager repos
+  ansible.builtin.command: subscription-manager repos --disable='*'
   register: _disable_repos
   changed_when: "'disabled' in (_disable_repos.stdout | default(''))"
   failed_when: false
@@ -55,17 +46,3 @@
 - name: Clear DNF cache
   ansible.builtin.command: dnf clean all
   changed_when: true
-
-- name: Verify DNF repo metadata is accessible
-  ansible.builtin.command: dnf check-update -q
-  register: _dnf_check
-  failed_when: false
-  changed_when: false
-
-- name: Warn if DNF check still fails
-  when: _dnf_check.rc != 0 and _dnf_check.rc != 100
-  ansible.builtin.debug:
-    msg: >-
-      DNF repo check returned rc={{ _dnf_check.rc }}.
-      stderr: {{ _dnf_check.stderr | default('') }}
-      This may indicate remaining repo issues but will not block provisioning.
