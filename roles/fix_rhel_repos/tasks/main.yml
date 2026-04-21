@@ -17,6 +17,11 @@
     remote_src: true
     backup: true
 
+- name: Clear DNF cache after CA cert swap
+  when: _katello_ca.stat.exists
+  ansible.builtin.command: dnf clean all
+  changed_when: true
+
 - name: Verify DNF repo metadata is accessible
   ansible.builtin.command: dnf check-update -q
   register: _dnf_check
