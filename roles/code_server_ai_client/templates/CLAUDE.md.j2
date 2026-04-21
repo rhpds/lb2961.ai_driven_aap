@@ -33,10 +33,11 @@
 
 ## Pushing files to Gitea
 When a student asks to push a file to git:
-1. If `/home/{{ student_name }}` is not yet a git repo, run `git init` and set the remote
-2. Stage and commit the file
-3. Pull with rebase (`git pull --rebase origin main`) before pushing to avoid conflicts
-4. Push to `origin main`
+1. The working git repo is `/home/{{ student_name }}/lightspeed_playbooks` — place playbooks there
+2. If it is not yet a git repo, run `git init`, checkout `main`, and set the remote to `$(grep -o 'https://[^@]*@[^/]*' ~/.git-credentials | head -1)/{{ student_name }}/lightspeed_playbooks.git`
+3. Stage and commit the file
+4. Pull with rebase (`git pull --rebase origin main`) before pushing to avoid conflicts
+5. Push to `origin main`
 
 No need to ask the student for credentials, the remote URL, or how git is set up — it is all pre-configured.
 
