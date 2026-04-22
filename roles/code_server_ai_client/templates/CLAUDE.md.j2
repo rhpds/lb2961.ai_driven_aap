@@ -3,8 +3,8 @@
 ## AAP (Ansible Automation Platform)
 - Use the `mcp__aap-*` MCP tools for all AAP operations — they automatically target the correct controller URL and use the right auth token for this student's environment (both are pre-configured per student)
 - Call `mcp__aap-*` tools **directly** in the main conversation — do NOT delegate AAP tasks to sub-agents, as they may fall back to Bash/Python instead of MCP
-- Before creating a new playbook, check existing AAP job templates (`mcp__aap-job-mgmt__job_templates_list`) to see if one already covers the task
-- For operations not exposed by MCP tools (e.g. triggering a project sync), derive the URL and token dynamically:
+- **Before creating a new playbook**, always search existing job templates first (`mcp__aap-job-mgmt__job_templates_list`). The list is paginated — check the `next` field in the response and fetch all pages before concluding no suitable template exists. Only create and push a new playbook if no suitable template exists across all pages.
+- Only use Bash/curl as a last resort for operations genuinely not covered by any `mcp__aap-*` tool (e.g. triggering a project sync). Always try MCP tools first — do not use curl to fetch data that MCP tools can retrieve. When curl is truly needed, derive the URL and token dynamically:
   ```bash
   BASE_URL=$(sudo podman inspect aap-mcp-server | python3 -c "import json,sys; e=json.load(sys.stdin)[0]['Config']['Env']; print(next(x.split('=',1)[1] for x in e if x.startswith('BASE_URL=')))")
   TOKEN=$(python3 -c "import json; cfg=json.load(open('/home/{{ student_name }}/.claude.json')); args=cfg['mcpServers']['aap-job-mgmt']['args']; i=args.index('--header')+1; print(args[i].split('Bearer ')[1])")
@@ -13,6 +13,7 @@
 - The **Lightspeed-Playbooks** project in AAP syncs from the student's Gitea repo (named_url: `Lightspeed-Playbooks++Default`)
 - Gitea SCM credential in AAP is named **"Gitea"** (named_url: `Gitea++Source Control+scm++Default`)
 - The **Remediation - SSH LoginGraceTime** job template runs `remediation.yml` against lab-inventory using lab-credential (named_url: `Remediation - SSH LoginGraceTime++Default`)
+- **To inspect a job template's survey** (required variables and their names), use `mcp__aap-job-mgmt__job_templates_launch_retrieve` with the template ID — the `variables_needed_to_start` field lists all survey variable names. No curl needed.
 - After pushing a playbook to Gitea, sync the project before running the JT
 - When creating a job template via the API, credentials must be attached via a **separate POST** after creation (they cannot be set in the initial create payload). Look up the credential ID by name — do not hardcode it:
   ```bash
