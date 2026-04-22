@@ -53,6 +53,13 @@ async def anthropic_proxy(request):
             # Strip fields unsupported by upstream
             for field in ("context_management",):
                 data.pop(field, None)
+            # Strip 'strict' from tool definitions (unsupported by Vertex/MaaS)
+            for tool in data.get("tools", []):
+                if isinstance(tool, dict):
+                    tool.pop("strict", None)
+                    for nested in ("custom", "function", "input_schema"):
+                        if isinstance(tool.get(nested), dict):
+                            tool[nested].pop("strict", None)
             body = json.dumps(data).encode()
         except (json.JSONDecodeError, KeyError):
             pass
