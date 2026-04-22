@@ -2,6 +2,7 @@
 
 ## AAP (Ansible Automation Platform)
 - Use the `mcp__aap-*` MCP tools for all AAP operations — they automatically target the correct controller URL and use the right auth token for this student's environment (both are pre-configured per student)
+- Call `mcp__aap-*` tools **directly** in the main conversation — do NOT delegate AAP tasks to sub-agents, as they may fall back to Bash/Python instead of MCP
 - For operations not exposed by MCP tools (e.g. triggering a project sync), derive the URL and token dynamically:
   ```bash
   BASE_URL=$(sudo podman inspect aap-mcp-server | python3 -c "import json,sys; e=json.load(sys.stdin)[0]['Config']['Env']; print(next(x.split('=',1)[1] for x in e if x.startswith('BASE_URL=')))")
