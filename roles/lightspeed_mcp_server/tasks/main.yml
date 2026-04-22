@@ -23,6 +23,24 @@
     ports:
       - "{{ lightspeed_mcp_port }}:8000"
 
+- name: Create systemd service for Lightspeed MCP server
+  become: true
+  ansible.builtin.template:
+    src: podman-container.service.j2
+    dest: "/etc/systemd/system/podman-{{ lightspeed_mcp_container_name }}.service"
+    mode: "0644"
+  vars:
+    container_name: "{{ lightspeed_mcp_container_name }}"
+  register: _lightspeed_service
+
+- name: Enable Lightspeed MCP server systemd service
+  become: true
+  ansible.builtin.systemd:
+    name: "podman-{{ lightspeed_mcp_container_name }}.service"
+    enabled: true
+    state: started
+    daemon_reload: "{{ _lightspeed_service.changed }}"
+
 - name: Wait for Lightspeed MCP server to be ready
   ansible.builtin.uri:
     url: "http://localhost:{{ lightspeed_mcp_port }}/mcp"

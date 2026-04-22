@@ -41,3 +41,23 @@
   retries: 12
   delay: 5
   until: mcp_health.status == 200
+
+- name: Create systemd service for AAP MCP server
+  when: mcp_server_enabled | bool
+  become: true
+  ansible.builtin.template:
+    src: podman-container.service.j2
+    dest: "/etc/systemd/system/podman-{{ mcp_server_container_name }}.service"
+    mode: "0644"
+  vars:
+    container_name: "{{ mcp_server_container_name }}"
+  register: _mcp_service
+
+- name: Enable AAP MCP server systemd service
+  when: mcp_server_enabled | bool
+  become: true
+  ansible.builtin.systemd:
+    name: "podman-{{ mcp_server_container_name }}.service"
+    enabled: true
+    state: started
+    daemon_reload: "{{ _mcp_service.changed }}"
