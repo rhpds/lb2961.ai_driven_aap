@@ -3,14 +3,10 @@
   become: "{{ rhelai_model_serve_become }}"
   become_user: "{{ rhelai_model_serve_become_user }}"
   block:
-    - name: Check if python3-libdnf5 is available
-      ansible.builtin.package_facts:
-
     - name: Install pip via package manager
-      ansible.builtin.dnf:
+      ansible.builtin.package:
         name: python3-pip
         state: present
-        use_backend: "{{ 'dnf5' if 'python3-libdnf5' in ansible_facts.packages else omit }}"
 
     - name: Install ruamel
       ansible.builtin.pip:
