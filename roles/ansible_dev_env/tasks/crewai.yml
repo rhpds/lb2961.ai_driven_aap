@@ -1,4 +1,11 @@
 ---
+- name: Upgrade pip in venv
+  become_user: "{{ student_name }}"
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ ansible_dev_env_venv_path }}"
+
 - name: Install CrewAI packages in venv
   become_user: "{{ student_name }}"
   ansible.builtin.pip:
