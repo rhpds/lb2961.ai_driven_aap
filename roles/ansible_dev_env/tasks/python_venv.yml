@@ -1,21 +1,41 @@
 ---
-- name: Clean dnf cache before Python install
-  ansible.builtin.command: dnf clean all
-  changed_when: true
+- name: Check if preferred Python is already installed
+  ansible.builtin.stat:
+    path: "{{ ansible_dev_env_python_bin }}"
+  register: _preferred_python
 
-- name: Install Python 3.12 RPMs
-  ansible.builtin.dnf:
-    name:
-      - python3.12
-      - python3.12-pip
-      - python3.12-devel
-    state: present
-  register: _python312_install
-  until: _python312_install is not failed
-  retries: 5
-  delay: 60
+- name: Install preferred Python RPMs
+  when: not _preferred_python.stat.exists
+  block:
+    - name: Clean dnf cache before Python install
+      ansible.builtin.command: dnf clean all
+      changed_when: true
 
-- name: Create Python 3.12 virtual environment
+    - name: "Install {{ ansible_dev_env_python_package }} RPMs"
+      ansible.builtin.dnf:
+        name:
+          - "{{ ansible_dev_env_python_package }}"
+          - "{{ ansible_dev_env_python_package }}-pip"
+          - "{{ ansible_dev_env_python_package }}-devel"
+        state: present
+      register: _python_install
+      until: _python_install is not failed
+      retries: 3
+      delay: 30
+
+  rescue:
+    - name: Fall back to system python3
+      ansible.builtin.set_fact:
+        ansible_dev_env_python_bin: /usr/bin/python3
+        ansible_dev_env_python_fallback: true
+
+    - name: Ensure system python3-pip is installed
+      ansible.builtin.dnf:
+        name: python3-pip
+        state: present
+      failed_when: false
+
+- name: Create Python virtual environment
   become_user: "{{ student_name }}"
   ansible.builtin.command:
     cmd: "{{ ansible_dev_env_python_bin }} -m venv {{ ansible_dev_env_venv_path }}"

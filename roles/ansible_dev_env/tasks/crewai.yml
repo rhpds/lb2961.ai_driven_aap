@@ -5,9 +5,19 @@
     name: "{{ ansible_dev_env_crewai_pip_packages }}"
     virtualenv: "{{ ansible_dev_env_venv_path }}"
 
+- name: Find chromadb init file for sqlite3 patch
+  ansible.builtin.find:
+    paths: "{{ ansible_dev_env_venv_path }}/lib64"
+    patterns: "__init__.py"
+    recurse: true
+    contains: "import chromadb"
+  register: _chromadb_init
+  failed_when: false
+
 - name: Patch chromadb to use pysqlite3 (RHEL sqlite3 too old)
+  when: _chromadb_init.files | length > 0
   ansible.builtin.lineinfile:
-    path: "{{ ansible_dev_env_venv_path }}/lib64/python3.12/site-packages/chromadb/__init__.py"
+    path: "{{ _chromadb_init.files[0].path }}"
     insertbefore: BOF
     line: "import pysqlite3; import sys; sys.modules['sqlite3'] = pysqlite3"
 
