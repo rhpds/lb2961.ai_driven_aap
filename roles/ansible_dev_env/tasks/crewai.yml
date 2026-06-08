@@ -25,6 +25,29 @@
     owner: "{{ student_name }}"
     mode: "0755"
 
+- name: Create AAP gateway token for CrewAI MCP authentication
+  when: ai_client_mcp_token | default('') | length == 0
+  environment:
+    GATEWAY_HOSTNAME: "{{ ansible_automation_platform_configuration_host }}"
+    GATEWAY_USERNAME: "{{ ansible_automation_platform_configuration_username }}"
+    GATEWAY_PASSWORD: "{{ ansible_automation_platform_configuration_password }}"
+    GATEWAY_VERIFY_SSL: "{{ ansible_automation_platform_configuration_verify_ssl }}"
+  ansible.platform.token:
+    description: CrewAI MCP server authentication token
+    scope: write
+    state: present
+  register: _crewai_token_result
+  until: _crewai_token_result is not failed
+  retries: 30
+  delay: 10
+
+- name: Set MCP token from gateway response
+  when:
+    - _crewai_token_result is defined
+    - _crewai_token_result is not skipped
+  ansible.builtin.set_fact:
+    ai_client_mcp_token: "{{ _crewai_token_result.ansible_facts.aap_token.token }}"
+
 - name: Set CrewAI MCP environment in .bashrc
   ansible.builtin.blockinfile:
     path: "/home/{{ student_name }}/.bashrc"
