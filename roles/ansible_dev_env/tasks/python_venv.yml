@@ -1,4 +1,8 @@
 ---
+- name: Clean dnf cache before Python install
+  ansible.builtin.command: dnf clean all
+  changed_when: true
+
 - name: Install Python 3.12 RPMs
   ansible.builtin.dnf:
     name:
@@ -8,8 +12,8 @@
     state: present
   register: _python312_install
   until: _python312_install is not failed
-  retries: 3
-  delay: 30
+  retries: 5
+  delay: 60
 
 - name: Create Python 3.12 virtual environment
   become_user: "{{ student_name }}"
