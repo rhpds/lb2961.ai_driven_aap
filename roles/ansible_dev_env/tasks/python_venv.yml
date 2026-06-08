@@ -6,6 +6,10 @@
       - python3.12-pip
       - python3.12-devel
     state: present
+  register: _python312_install
+  until: _python312_install is not failed
+  retries: 3
+  delay: 30
 
 - name: Create Python 3.12 virtual environment
   become_user: "{{ student_name }}"
