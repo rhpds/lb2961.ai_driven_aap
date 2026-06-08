@@ -42,18 +42,31 @@
       ansible.builtin.set_fact:
         ansible_dev_env_python_bin: /usr/bin/python3.11
 
-    - name: Disable CrewAI when no compatible python available
+    - name: Install standalone Python from GitHub when repos unavailable
+      when: _python311_install is failed
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          PY_VER="{{ ansible_dev_env_standalone_python_version | default('3.12.11') }}"
+          PY_MAJOR="${PY_VER%.*}"
+          INSTALL_DIR="/opt/python${PY_VER}"
+          RELEASE="20250604"
+          TARBALL="cpython-${PY_VER}+${RELEASE}-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+          URL="https://github.com/astral-sh/python-build-standalone/releases/download/${RELEASE}/${TARBALL}"
+
+          curl -sSL -o /tmp/python-standalone.tar.gz "${URL}"
+          mkdir -p "${INSTALL_DIR}"
+          tar xzf /tmp/python-standalone.tar.gz -C "${INSTALL_DIR}" --strip-components=1
+          rm -f /tmp/python-standalone.tar.gz
+
+          ln -sf "${INSTALL_DIR}/bin/python${PY_MAJOR}" "/usr/local/bin/python${PY_MAJOR}"
+          ln -sf "${INSTALL_DIR}/bin/pip${PY_MAJOR}" "/usr/local/bin/pip${PY_MAJOR}"
+        creates: /usr/local/bin/python3.12
+
+    - name: Set standalone python as interpreter
       when: _python311_install is failed
       ansible.builtin.set_fact:
-        ansible_dev_env_python_bin: /usr/bin/python3
-        ansible_dev_env_crewai_enabled: false
-
-    - name: Warn about python version limitation
-      when: _python311_install is failed
-      ansible.builtin.debug:
-        msg: >-
-          Could not install python3.12 or python3.11 (repos unavailable).
-          Falling back to system python3.9. CrewAI requires >= 3.10 and will be disabled.
+        ansible_dev_env_python_bin: /usr/local/bin/python3.12
 
 - name: Create Python virtual environment
   become_user: "{{ student_name }}"
