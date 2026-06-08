@@ -4,7 +4,7 @@
     path: "{{ ansible_dev_env_python_bin }}"
   register: _preferred_python
 
-- name: Install preferred Python RPMs
+- name: Install Python from repos
   when: not _preferred_python.stat.exists
   block:
     - name: Clean dnf cache before Python install
@@ -24,22 +24,49 @@
       delay: 30
 
   rescue:
-    - name: Fall back to system python3
+    - name: "Try python3.11 as fallback (CrewAI requires >= 3.10)"
+      ansible.builtin.dnf:
+        name:
+          - python3.11
+          - python3.11-pip
+          - python3.11-devel
+        state: present
+      register: _python311_install
+      until: _python311_install is not failed
+      retries: 2
+      delay: 30
+      failed_when: false
+
+    - name: Set python3.11 as interpreter
+      when: _python311_install is not failed
+      ansible.builtin.set_fact:
+        ansible_dev_env_python_bin: /usr/bin/python3.11
+
+    - name: Disable CrewAI when no compatible python available
+      when: _python311_install is failed
       ansible.builtin.set_fact:
         ansible_dev_env_python_bin: /usr/bin/python3
-        ansible_dev_env_python_fallback: true
+        ansible_dev_env_crewai_enabled: false
 
-    - name: Ensure system python3-pip is installed
-      ansible.builtin.dnf:
-        name: python3-pip
-        state: present
-      failed_when: false
+    - name: Warn about python version limitation
+      when: _python311_install is failed
+      ansible.builtin.debug:
+        msg: >-
+          Could not install python3.12 or python3.11 (repos unavailable).
+          Falling back to system python3.9. CrewAI requires >= 3.10 and will be disabled.
 
 - name: Create Python virtual environment
   become_user: "{{ student_name }}"
   ansible.builtin.command:
     cmd: "{{ ansible_dev_env_python_bin }} -m venv {{ ansible_dev_env_venv_path }}"
     creates: "{{ ansible_dev_env_venv_path }}/bin/python3"
+
+- name: Upgrade pip in venv
+  become_user: "{{ student_name }}"
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ ansible_dev_env_venv_path }}"
 
 - name: Install ansible-dev-tools in venv
   become_user: "{{ student_name }}"
