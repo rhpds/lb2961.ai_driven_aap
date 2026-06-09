@@ -4,6 +4,12 @@
     path: "{{ ansible_dev_env_python_bin }}"
   register: _preferred_python
 
+- name: Fix repo SSL verification (satellite CA vs CDN mismatch)
+  ansible.builtin.command:
+    cmd: bash -c 'sed -i "s/sslverify = 1/sslverify = 0/g" /etc/yum.repos.d/redhat.repo'
+  changed_when: true
+  failed_when: false
+
 - name: Install Python from repos
   when: not _preferred_python.stat.exists
   block:
