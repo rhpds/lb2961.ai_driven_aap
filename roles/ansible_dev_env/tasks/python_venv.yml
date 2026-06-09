@@ -7,10 +7,6 @@
 - name: Install Python from repos
   when: not _preferred_python.stat.exists
   block:
-    - name: Clean dnf cache before Python install
-      ansible.builtin.command: dnf clean all
-      changed_when: true
-
     - name: "Install {{ ansible_dev_env_python_package }} RPMs"
       ansible.builtin.dnf:
         name:
