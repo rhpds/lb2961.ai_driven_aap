@@ -1,48 +1,16 @@
 ---
-# Fix RHEL repos on nodes previously registered to Satellite/Katello.
+# Disable satellite repos on RHEL nodes so they don't interfere with
+# role-specific repos (e.g. Elastic for filebeat).
 #
-# These nodes have two problems:
-#   1. katello-server-ca.pem doesn't sign the Red Hat CDN
-#   2. The node entitlements may be Satellite-specific and invalid for CDN
-#
-# Since the `common` role (which needs RHEL repos) never runs on nodes —
-# only on bastions — and the only DNF install on nodes is filebeat from
-# the Elastic repo, we disable ALL subscription-manager repos and let
-# role-specific repos (e.g. elastic.repo) work unobstructed.
-#
-# We also replace the CA cert and make it immutable as a belt-and-suspenders
-# measure in case any role re-enables RHEL repos later.
+# These nodes only need the Elastic repo. Rather than calling
+# subscription-manager (which hits the shared satellite capsule HA
+# and can disrupt other hosts), we disable repos locally in dnf config.
 
-- name: Check if katello-server-ca.pem exists
-  ansible.builtin.stat:
-    path: /etc/rhsm/ca/katello-server-ca.pem
-  register: _katello_ca
-
-- name: Remove immutable flag before replacing (in case previously set)
-  when: _katello_ca.stat.exists
-  ansible.builtin.command: chattr -i /etc/rhsm/ca/katello-server-ca.pem
-  failed_when: false
-  changed_when: false
-
-- name: Replace katello-server-ca.pem with redhat-uep.pem
-  when: _katello_ca.stat.exists
-  ansible.builtin.copy:
-    src: /etc/rhsm/ca/redhat-uep.pem
-    dest: /etc/rhsm/ca/katello-server-ca.pem
-    remote_src: true
-    backup: true
-
-- name: Make katello-server-ca.pem immutable so rhsm cannot overwrite it
-  when: _katello_ca.stat.exists
-  ansible.builtin.command: chattr +i /etc/rhsm/ca/katello-server-ca.pem
-  changed_when: true
-
-- name: Disable all subscription-manager repos
-  ansible.builtin.command: subscription-manager repos --disable='*'
+- name: Disable satellite repos locally (no subscription-manager calls)
+  ansible.builtin.command: >-
+    dnf config-manager --disable
+    rhel-9-for-x86_64-baseos-rpms
+    rhel-9-for-x86_64-appstream-rpms
   register: _disable_repos
-  changed_when: "'disabled' in (_disable_repos.stdout | default(''))"
+  changed_when: _disable_repos.rc == 0
   failed_when: false
-
-- name: Clear DNF cache
-  ansible.builtin.command: dnf clean all
-  changed_when: true
