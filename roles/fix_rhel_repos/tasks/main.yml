@@ -6,7 +6,7 @@
 
 - name: Fix repo SSL verification on nodes (satellite CA vs CDN mismatch)
   ansible.builtin.command:
-    cmd: bash -c 'sed -i "s/sslverify = 1/sslverify = 0/g" /etc/yum.repos.d/redhat.repo'
+    cmd: bash -c 'sed -i "s/sslverify = 1/sslverify = 0/g; s/sslverifystatus = 1/sslverifystatus = 0/g" /etc/yum.repos.d/redhat.repo'
   changed_when: true
   failed_when: false
 
