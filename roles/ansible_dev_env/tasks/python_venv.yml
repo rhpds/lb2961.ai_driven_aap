@@ -10,6 +10,13 @@
   changed_when: true
   failed_when: false
 
+- name: Set sslverify=0 globally in dnf.conf (survives redhat.repo rewrites)
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    line: "sslverify=0"
+    regexp: "^sslverify"
+    state: present
+
 - name: Install Python from repos
   when: not _preferred_python.stat.exists
   block:
