@@ -1,16 +1,18 @@
 ---
-# Disable satellite repos on RHEL nodes so they don't interfere with
-# role-specific repos (e.g. Elastic for filebeat).
-#
-# These nodes only need the Elastic repo. Rather than calling
-# subscription-manager (which hits the shared satellite capsule HA
-# and can disrupt other hosts), we disable repos locally in dnf config.
+# Fix satellite CA vs CDN SSL mismatch on RHEL nodes.
+# set-repositories re-registers to CDN but keeps the satellite katello
+# CA cert which cannot validate CDN SSL. Disabling sslverify allows
+# dnf to work with the CDN repos.
 
-- name: Disable satellite repos locally (no subscription-manager calls)
-  ansible.builtin.command: >-
-    dnf config-manager --disable
-    rhel-9-for-x86_64-baseos-rpms
-    rhel-9-for-x86_64-appstream-rpms
-  register: _disable_repos
-  changed_when: _disable_repos.rc == 0
+- name: Fix repo SSL verification on nodes (satellite CA vs CDN mismatch)
+  ansible.builtin.command:
+    cmd: bash -c 'sed -i "s/sslverify = 1/sslverify = 0/g" /etc/yum.repos.d/redhat.repo'
+  changed_when: true
   failed_when: false
+
+- name: Set sslverify=0 globally in dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    line: "sslverify=0"
+    regexp: "^sslverify"
+    state: present
