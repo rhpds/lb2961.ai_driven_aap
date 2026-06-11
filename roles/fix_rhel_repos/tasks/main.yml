@@ -1,8 +1,9 @@
 ---
 # Fix satellite CA vs CDN SSL mismatch on RHEL nodes.
 # set-repositories re-registers to CDN but keeps the satellite katello
-# CA cert which cannot validate CDN SSL. Disabling sslverify allows
-# dnf to work with the CDN repos.
+# CA cert which cannot validate CDN SSL. rhsm.service also rewrites
+# redhat.repo after provisioning, undoing per-repo fixes. The global
+# dnf.conf settings persist regardless of redhat.repo rewrites.
 
 - name: Fix repo SSL verification on nodes (satellite CA vs CDN mismatch)
   ansible.builtin.command:
@@ -15,4 +16,11 @@
     path: /etc/dnf/dnf.conf
     line: "sslverify=0"
     regexp: "^sslverify"
+    state: present
+
+- name: Set sslverifystatus=0 globally in dnf.conf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    line: "sslverifystatus=0"
+    regexp: "^sslverifystatus"
     state: present
