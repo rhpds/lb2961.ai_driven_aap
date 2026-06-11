@@ -10,8 +10,8 @@ ansible_dev_env_pip_packages:
 # CrewAI agent support (disabled by default)
 ansible_dev_env_crewai_enabled: false
 ansible_dev_env_crewai_pip_packages:
-  - "crewai[anthropic]"
-  - crewai-tools
+  - "crewai[anthropic]==1.13.0"
+  - "crewai-tools==1.13.0"
   - mcp
   - pysqlite3-binary
 
