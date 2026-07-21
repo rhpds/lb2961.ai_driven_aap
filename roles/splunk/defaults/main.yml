@@ -1,7 +1,7 @@
 ---
 # Splunk container configuration
 splunk_container_name: splunk
-splunk_image: splunk/splunk:latest
+splunk_image: splunk/splunk:9.4.12
 splunk_privileged: true
 
 # Port configuration
