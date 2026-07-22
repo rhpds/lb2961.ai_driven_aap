@@ -1,7 +1,7 @@
 ---
 - name: Vault-encrypt LiteLLM API URL
   ansible.builtin.command:
-    cmd: ansible-vault encrypt_string --vault-password-file /dev/stdin "{{ litellm_api_endpoint }}/chat/completions" --name llm_api_url
+    cmd: ansible-vault encrypt_string --vault-password-file /dev/stdin "{{ litellm_api_endpoint }}/chat/completions"
     stdin: "{{ aap_ansible_vault_password }}"
   register: _llm_api_url_vaulted
   changed_when: false
@@ -9,7 +9,7 @@
 
 - name: Vault-encrypt LiteLLM API key
   ansible.builtin.command:
-    cmd: ansible-vault encrypt_string --vault-password-file /dev/stdin "{{ litellm_virtual_key }}" --name llm_api_key
+    cmd: ansible-vault encrypt_string --vault-password-file /dev/stdin "{{ litellm_virtual_key }}"
     stdin: "{{ aap_ansible_vault_password }}"
   register: _llm_api_key_vaulted
   changed_when: false
