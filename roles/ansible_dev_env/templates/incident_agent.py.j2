@@ -101,10 +101,20 @@ mcp_toolkit = MCPToolkit(MCP_BASE_URL, MCP_TOKEN)
 @tool("List All Job Templates")
 def list_all_job_templates() -> str:
     """List ALL available job templates in AAP with their names and descriptions.
-    Use this to discover what automation is available before deciding on a plan."""
-    return mcp_toolkit.call_tool_sync(
+    Use this to discover what automation is available before deciding on a plan.
+    Never includes AI Agent templates to prevent recursive self-invocation."""
+    raw = mcp_toolkit.call_tool_sync(
         "job_management", "job_templates_list", {"page_size": 50}
     )
+    try:
+        data = json.loads(raw)
+        data["results"] = [
+            t for t in data.get("results", [])
+            if "AI Agent" not in t.get("name", "")
+        ]
+        return json.dumps(data)
+    except Exception:
+        return raw
 
 
 @tool("Get Job Template Details")
@@ -115,7 +125,7 @@ def get_job_template_details(template_id: str) -> str:
     )
 
 
-@tool("Launch Job Template")
+@tool("Launch Job Template", cache_function=lambda *_: False)
 def launch_job_template(template_id: str) -> str:
     """Launch an AAP job template by its ID. Poll job status separately after."""
     return mcp_toolkit.call_tool_sync(
@@ -129,6 +139,28 @@ def get_job_status(job_id: str) -> str:
     return mcp_toolkit.call_tool_sync(
         "job_management", "jobs_retrieve", {"id": job_id}
     )
+
+
+@tool("Wait For Job", cache_function=lambda *_: False)
+def wait_for_job(job_id: str) -> str:
+    """Poll a job until it reaches a terminal state (successful/failed/error/canceled).
+    Use this after launching a job instead of calling Get Job Status in a loop.
+    Returns final status and a one-line summary when done."""
+    terminal = {"successful", "failed", "error", "canceled"}
+    deadline = time.time() + 600
+    while time.time() < deadline:
+        raw = mcp_toolkit.call_tool_sync(
+            "job_management", "jobs_retrieve", {"id": job_id}
+        )
+        try:
+            status = json.loads(raw).get("status", "")
+            if status in terminal:
+                return f"Job {job_id} finished with status: {status}\n{raw}"
+        except Exception:
+            if any(f'"status": "{s}"' in raw for s in terminal):
+                return f"Job {job_id} finished.\n{raw}"
+        time.sleep(10)
+    return f"Job {job_id} did not finish within 10 minutes (timeout)."
 
 
 @tool("Get Job Output")
@@ -168,7 +200,7 @@ def list_inventories() -> str:
 # ---------------------------------------------------------------------------
 all_tools = [
     list_all_job_templates, get_job_template_details, launch_job_template,
-    get_job_status, get_job_output, get_recent_jobs, list_hosts, list_inventories,
+    get_job_status, wait_for_job, get_job_output, get_recent_jobs, list_hosts, list_inventories,
 ]
 
 
@@ -210,6 +242,8 @@ def make_executor_agent():
             "CRITICAL: Never launch the same template more than once. If a "
             "remediation template succeeds, do NOT run it again. Your sequence "
             "is: diagnose once, fix once, verify once. Three steps maximum. "
+            "CRITICAL: Never launch any template with 'AI Agent' in the name - "
+            "those run autonomous agents and will cause infinite loops. "
             "Never use emojis. Use plain text only. Keep output brief and direct."
         ),
         tools=all_tools,
@@ -264,9 +298,9 @@ def build_execute_task(problem, agent, triage_task):
         description=(
             "Execute the action plan from triage.\n\n"
             "Follow this exact sequence (3 steps max):\n"
-            "1. Run the diagnostic template, poll until complete, read output\n"
-            "2. Run the remediation template, poll until complete, read output\n"
-            "3. Run the diagnostic template ONE MORE TIME to verify the fix\n\n"
+            "1. Launch the diagnostic template, call Wait For Job with the returned job ID, read output\n"
+            "2. Launch the remediation template, call Wait For Job with the returned job ID, read output\n"
+            "3. Launch the diagnostic template ONE MORE TIME to verify the fix, call Wait For Job\n\n"
             "STOP after step 3. Do NOT re-run any template you already ran.\n"
             "Never launch the same remediation template twice.\n\n"
             "If no templates were relevant, state that no action was taken."
