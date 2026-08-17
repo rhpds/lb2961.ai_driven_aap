@@ -125,7 +125,7 @@ def get_job_template_details(template_id: str) -> str:
     )
 
 
-@tool("Launch Job Template", cache_function=lambda *_: False)
+@tool("Launch Job Template")
 def launch_job_template(template_id: str) -> str:
     """Launch an AAP job template by its ID. Poll job status separately after."""
     return mcp_toolkit.call_tool_sync(
@@ -141,7 +141,7 @@ def get_job_status(job_id: str) -> str:
     )
 
 
-@tool("Wait For Job", cache_function=lambda *_: False)
+@tool("Wait For Job")
 def wait_for_job(job_id: str) -> str:
     """Poll a job until it reaches a terminal state (successful/failed/error/canceled).
     Use this after launching a job instead of calling Get Job Status in a loop.
@@ -352,7 +352,7 @@ def print_stage(label, result):
 def run_triage(problem):
     agent = make_triage_agent()
     task = build_triage_task(problem, agent)
-    crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=VERBOSE)
+    crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=VERBOSE, cache=False)
     return crew.kickoff()
 
 
@@ -360,14 +360,14 @@ def run_execute(problem):
     triage_agent = make_triage_agent()
     triage_task = build_triage_task(problem, triage_agent)
     triage_crew = Crew(agents=[triage_agent], tasks=[triage_task],
-                       process=Process.sequential, verbose=VERBOSE)
+                       process=Process.sequential, verbose=VERBOSE, cache=False)
     triage_result = triage_crew.kickoff()
     print_stage("TRIAGE", triage_result)
 
     executor_agent = make_executor_agent()
     execute_task = build_execute_task(problem, executor_agent, triage_task)
     execute_crew = Crew(agents=[executor_agent], tasks=[execute_task],
-                        process=Process.sequential, verbose=VERBOSE)
+                        process=Process.sequential, verbose=VERBOSE, cache=False)
     return execute_crew.kickoff()
 
 
@@ -375,21 +375,21 @@ def run_report(problem):
     triage_agent = make_triage_agent()
     triage_task = build_triage_task(problem, triage_agent)
     triage_crew = Crew(agents=[triage_agent], tasks=[triage_task],
-                       process=Process.sequential, verbose=VERBOSE)
+                       process=Process.sequential, verbose=VERBOSE, cache=False)
     triage_result = triage_crew.kickoff()
     print_stage("TRIAGE", triage_result)
 
     executor_agent = make_executor_agent()
     execute_task = build_execute_task(problem, executor_agent, triage_task)
     execute_crew = Crew(agents=[executor_agent], tasks=[execute_task],
-                        process=Process.sequential, verbose=VERBOSE)
+                        process=Process.sequential, verbose=VERBOSE, cache=False)
     execute_result = execute_crew.kickoff()
     print_stage("EXECUTION", execute_result)
 
     reporter_agent = make_reporter_agent()
     report_task = build_report_task(problem, reporter_agent, [triage_task, execute_task])
     report_crew = Crew(agents=[reporter_agent], tasks=[report_task],
-                       process=Process.sequential, verbose=VERBOSE)
+                       process=Process.sequential, verbose=VERBOSE, cache=False)
     return report_crew.kickoff()
 
 
