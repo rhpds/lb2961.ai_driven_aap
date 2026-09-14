@@ -1,0 +1,6 @@
+---
+# Initial wait for in-progress sync to complete before triggering manual update
+controller_project_sync_wait_initial_retries: 6
+# Final wait after triggering a manual project update
+controller_project_sync_wait_retries: 30
+controller_project_sync_wait_delay: 10

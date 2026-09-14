@@ -1,0 +1,103 @@
+---
+- name: Get controller project status
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/?name={{ item.name | urlencode }}"
+    method: GET
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: 200
+    return_content: true
+  register: controller_project_status
+  loop: "{{ controller_projects | unique(attribute='name') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Wait for in-progress project sync to complete
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/?name={{ item.item.name | urlencode }}"
+    method: GET
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: 200
+    return_content: true
+  register: controller_project_poll
+  until: >
+    controller_project_poll.json.results | length > 0 and
+    controller_project_poll.json.results[0].status not in ['running', 'pending', 'waiting']
+  retries: "{{ controller_project_sync_wait_initial_retries }}"
+  delay: "{{ controller_project_sync_wait_delay }}"
+  failed_when: false
+  when:
+    - item.json.results | length > 0
+    - item.json.results[0].status in ['running', 'pending', 'waiting']
+  loop: "{{ controller_project_status.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Trigger project update for projects not successfully synced
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/{{ item.json.results[0].id }}/update/"
+    method: POST
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: [200, 202, 204]
+  register: controller_project_update_trigger
+  failed_when: false
+  when:
+    - item.json.results | length > 0
+    - item.json.results[0].status not in ['successful', 'running', 'pending', 'waiting']
+  loop: "{{ controller_project_status.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Wait for project sync to complete after update trigger
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/?name={{ item.item.name | urlencode }}"
+    method: GET
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: 200
+    return_content: true
+  register: controller_project_final_status
+  until: >
+    controller_project_final_status.json.results | length > 0 and
+    controller_project_final_status.json.results[0].status == 'successful'
+  retries: "{{ controller_project_sync_wait_retries }}"
+  delay: "{{ controller_project_sync_wait_delay }}"
+  failed_when: false
+  when:
+    - item.json.results | length > 0
+    - item.json.results[0].status not in ['successful']
+  loop: "{{ controller_project_status.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Identify projects still not synced after update
+  ansible.builtin.set_fact:
+    controller_stuck_projects: >-
+      {{
+        controller_project_final_status.results
+        | selectattr('skipped', 'undefined')
+        | selectattr('json.results.0.status', 'ne', 'successful')
+        | map(attribute='json.results.0')
+        | list
+      }}
+  when: controller_project_final_status is not skipped
+
+- name: Warn about projects that failed to sync
+  ansible.builtin.debug:
+    msg: "WARNING: Project '{{ item.name }}' failed to sync (status: {{ item.status }}). Job templates using this project may fail playbook validation."
+  when:
+    - controller_stuck_projects is defined
+    - controller_stuck_projects | length > 0
+  loop: "{{ controller_stuck_projects | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
