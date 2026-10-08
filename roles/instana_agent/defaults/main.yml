@@ -12,6 +12,9 @@ instana_aap_lab_credential_name: "lab-credential"
 instana_aap_inventory_name: "lab-inventory"
 instana_aap_scm_branch: "main"
 
+aap_admin_user: "{{ ansible_automation_platform_configuration_username }}"
+aap_admin_password: "{{ ansible_automation_platform_configuration_password }}"
+
 instana_webapp_dir: "/opt/lab-webapp"
 instana_webapp_port: 8080
 instana_webapp_service_name: "lab-webapp-{{ guid }}"
