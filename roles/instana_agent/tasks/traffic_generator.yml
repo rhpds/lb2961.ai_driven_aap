@@ -15,6 +15,7 @@
       WantedBy=multi-user.target
     mode: '0644'
   become: true
+  delegate_to: "{{ groups['bastions'][0] }}"
 
 - name: Enable and start lab-traffic service on bastion
   ansible.builtin.systemd:
@@ -23,3 +24,4 @@
     state: started
     daemon_reload: true
   become: true
+  delegate_to: "{{ groups['bastions'][0] }}"

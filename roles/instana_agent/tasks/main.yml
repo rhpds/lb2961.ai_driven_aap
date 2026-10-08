@@ -16,7 +16,6 @@
 - name: Set up continuous traffic generator on bastion
   ansible.builtin.include_tasks: traffic_generator.yml
   run_once: true
-  delegate_to: bastion
 
 - name: Set up EDA project and Instana AIOps activation
   ansible.builtin.include_tasks: eda_setup.yml
