@@ -1,18 +1,23 @@
 ---
+# AAP setup delegates API calls to localhost but must run in node2 context
+# so instana_aap_sensor_token fact is available for agent_install below
 - name: Set up Instana AIOps org, project, and job templates in AAP
   ansible.builtin.include_tasks: aap_setup.yml
+  when: inventory_hostname == 'node2'
 
-- name: Install and configure Instana agent
+- name: Install and configure Instana agent on node2
   ansible.builtin.include_tasks: agent_install.yml
+  when: inventory_hostname == 'node2'
 
-- name: Install lab web application
+- name: Install lab web application on node2
   ansible.builtin.include_tasks: webapp_install.yml
+  when: inventory_hostname == 'node2'
 
 - name: Set up continuous traffic generator on bastion
   ansible.builtin.include_tasks: traffic_generator.yml
+  run_once: true
   delegate_to: bastion
-  vars:
-    ansible_user: "{{ hostvars['bastion']['ansible_user'] | default('lab-user') }}"
 
 - name: Set up EDA project and Instana AIOps activation
   ansible.builtin.include_tasks: eda_setup.yml
+  run_once: true
