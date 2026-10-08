@@ -1,0 +1,281 @@
+---
+- name: Look up AAP resource IDs needed for Instana setup
+  block:
+    - name: Get Gitea credential ID
+      ansible.builtin.uri:
+        url: "{{ controller_url }}/api/controller/v2/credentials/?name={{ instana_aap_gitea_credential_name | urlencode }}"
+        method: GET
+        user: "{{ aap_admin_user | default('admin') }}"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: 200
+      register: _gitea_cred
+      delegate_to: localhost
+
+    - name: Get lab-credential ID
+      ansible.builtin.uri:
+        url: "{{ controller_url }}/api/controller/v2/credentials/?name={{ instana_aap_lab_credential_name | urlencode }}"
+        method: GET
+        user: "{{ aap_admin_user | default('admin') }}"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: 200
+      register: _lab_cred
+      delegate_to: localhost
+
+    - name: Get lab-inventory ID
+      ansible.builtin.uri:
+        url: "{{ controller_url }}/api/controller/v2/inventories/?name={{ instana_aap_inventory_name | urlencode }}"
+        method: GET
+        user: "{{ aap_admin_user | default('admin') }}"
+        password: "{{ aap_admin_password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: 200
+      register: _inventory
+      delegate_to: localhost
+
+    - name: Set resource ID facts
+      ansible.builtin.set_fact:
+        _gitea_cred_id: "{{ _gitea_cred.json.results[0].id }}"
+        _lab_cred_id: "{{ _lab_cred.json.results[0].id }}"
+        _inventory_id: "{{ _inventory.json.results[0].id }}"
+        _gitea_url: "{{ _gitea_cred.json.results[0].inputs.password | default('') }}"
+
+- name: Create Instana AIOps organization in AAP
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/organizations/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      name: "{{ instana_aap_org_name }}"
+      description: "Instana Action Catalog templates - student separation by guid"
+    status_code: [200, 201]
+  register: _instana_org
+  delegate_to: localhost
+
+- name: Set Instana AIOps org ID
+  ansible.builtin.set_fact:
+    _instana_org_id: "{{ _instana_org.json.id }}"
+
+- name: Get Gitea SCM URL from existing Instana Lab Playbooks project
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _existing_project
+  delegate_to: localhost
+
+- name: Create Instana AIOps Playbooks project in Instana org
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/projects/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      name: "{{ instana_aap_project_name }}"
+      organization: "{{ _instana_org_id }}"
+      scm_type: git
+      scm_url: "{{ _existing_project.json.results[0].scm_url }}"
+      scm_branch: "{{ instana_aap_scm_branch }}"
+      scm_update_on_launch: false
+      credential: "{{ _gitea_cred_id }}"
+    status_code: [200, 201]
+  register: _instana_project
+  delegate_to: localhost
+
+- name: Set Instana project ID
+  ansible.builtin.set_fact:
+    _instana_project_id: "{{ _instana_project.json.id }}"
+
+- name: Wait for Instana AIOps project sync to complete
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _project_status
+  delegate_to: localhost
+  retries: 20
+  delay: 10
+  until: _project_status.json.status in ['successful', 'failed']
+
+- name: Trigger project sync if not yet synced
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/update/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [202]
+  delegate_to: localhost
+  when: _project_status.json.status == 'failed'
+
+- name: Wait for re-triggered sync to complete
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _project_status
+  delegate_to: localhost
+  retries: 20
+  delay: 10
+  until: _project_status.json.status == 'successful'
+  when: _project_status.json.status == 'failed'
+
+- name: Create Instana AIOps job templates
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/job_templates/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      description: "{{ item.description }}"
+      job_type: run
+      organization: "{{ _instana_org_id }}"
+      project: "{{ _instana_project_id }}"
+      inventory: "{{ _inventory_id }}"
+      playbook: "{{ item.playbook }}"
+      ask_limit_on_launch: true
+    status_code: [200, 201]
+  register: _instana_templates
+  delegate_to: localhost
+  loop:
+    - name: "INSTANA | {{ guid }} | Restore Web App Service - Fix call rate drop and service outage"
+      description: "Restores the lab web application service when it is down or unreachable. Use when call rate drops to zero or web app is not responding."
+      playbook: playbooks/lab_webapp_restore.yml
+    - name: "INSTANA | {{ guid }} | Break Web App Service - Simulate service outage"
+      description: "Stops the lab web application service to simulate an outage. Use for testing incident detection and automated remediation workflows."
+      playbook: playbooks/lab_webapp_break.yml
+    - name: "INSTANA | {{ guid }} | Check Web App Service Health - Verify service status during incident"
+      description: "Checks the health and status of the lab web application systemd service. Use to verify service state during incident investigation."
+      playbook: playbooks/systemd_check_status.yml
+    - name: "INSTANA | {{ guid }} | Collect Web App Diagnostics - Gather facts for incident triage"
+      description: "Collects diagnostic information and system facts from the host running the lab web application. Use to gather data during incident triage."
+      playbook: playbooks/debug_facts.yml
+    - name: "INSTANA | {{ guid }} | AI Route Web App Incident - Analyze and remediate service call rate issue"
+      description: "Analyzes the web application incident using AI and routes to the appropriate remediation action. Entry point for AI-driven automated remediation workflows."
+      playbook: playbooks/ai_route_cron_remediation.yml
+    - name: "INSTANA | {{ guid }} | Notify Mattermost - Web App Service Incident Alert"
+      description: "Sends an alert notification to Mattermost when a web application incident is detected on the monitored host."
+      playbook: playbooks/mattermost_rhel_alert.yml
+
+- name: Attach lab-credential to each Instana job template
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/job_templates/{{ item.json.id }}/credentials/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      id: "{{ _lab_cred_id }}"
+    status_code: [204]
+  delegate_to: localhost
+  loop: "{{ _instana_templates.results }}"
+  loop_control:
+    label: "{{ item.json.name }}"
+
+- name: Create instana-sensor user in AAP
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/users/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      username: "{{ instana_aap_sensor_user }}"
+      password: "{{ instana_aap_sensor_password }}"
+      email: "{{ instana_aap_sensor_user }}@lab.local"
+      is_superuser: false
+    status_code: [200, 201]
+  register: _sensor_user
+  delegate_to: localhost
+
+- name: Add instana-sensor user to Instana AIOps org
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/organizations/{{ _instana_org_id }}/users/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      id: "{{ _sensor_user.json.id }}"
+    status_code: [204]
+  delegate_to: localhost
+
+- name: Get Execute role ID for Instana AIOps org
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/organizations/{{ _instana_org_id }}/object_roles/"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _org_roles
+  delegate_to: localhost
+
+- name: Assign Execute role to instana-sensor on Instana AIOps org
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/roles/{{ (_org_roles.json.results | selectattr('name', 'equalto', 'Execute') | list)[0].id }}/users/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      id: "{{ _sensor_user.json.id }}"
+    status_code: [204]
+  delegate_to: localhost
+
+- name: Create AAP token for instana-sensor user
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/tokens/"
+    method: POST
+    user: "{{ instana_aap_sensor_user }}"
+    password: "{{ instana_aap_sensor_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      description: "Instana sensor token"
+      scope: read
+    status_code: [200, 201]
+  register: _sensor_token
+  delegate_to: localhost
+
+- name: Store sensor token for use in agent configuration
+  ansible.builtin.set_fact:
+    instana_aap_sensor_token: "{{ _sensor_token.json.token }}"

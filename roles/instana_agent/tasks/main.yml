@@ -1,0 +1,18 @@
+---
+- name: Set up Instana AIOps org, project, and job templates in AAP
+  ansible.builtin.include_tasks: aap_setup.yml
+
+- name: Install and configure Instana agent
+  ansible.builtin.include_tasks: agent_install.yml
+
+- name: Install lab web application
+  ansible.builtin.include_tasks: webapp_install.yml
+
+- name: Set up continuous traffic generator on bastion
+  ansible.builtin.include_tasks: traffic_generator.yml
+  delegate_to: bastion
+  vars:
+    ansible_user: "{{ hostvars['bastion']['ansible_user'] | default('lab-user') }}"
+
+- name: Set up EDA project and Instana AIOps activation
+  ansible.builtin.include_tasks: eda_setup.yml

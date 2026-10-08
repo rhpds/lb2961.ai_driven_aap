@@ -1,0 +1,14 @@
+---
+- name: restart instana-agent
+  ansible.builtin.systemd:
+    name: instana-agent
+    state: restarted
+    daemon_reload: true
+  become: true
+
+- name: restart lab-webapp
+  ansible.builtin.systemd:
+    name: lab-webapp
+    state: restarted
+    daemon_reload: true
+  become: true

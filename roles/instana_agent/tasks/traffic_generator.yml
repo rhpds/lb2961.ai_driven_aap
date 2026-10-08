@@ -1,0 +1,25 @@
+---
+- name: Create continuous traffic generator systemd service on bastion
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/lab-traffic.service
+    content: |
+      [Unit]
+      Description=Continuous traffic generator for Instana lab-webapp monitoring
+      After=network.target
+
+      [Service]
+      ExecStart=/bin/bash -c 'while true; do curl -sf http://node2:{{ instana_webapp_port }}/health > /dev/null 2>&1; sleep {{ instana_traffic_interval }}; done'
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+  become: true
+
+- name: Enable and start lab-traffic service on bastion
+  ansible.builtin.systemd:
+    name: lab-traffic
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true

@@ -1,0 +1,98 @@
+---
+- name: Configure Instana agent RPM repository
+  ansible.builtin.yum_repository:
+    name: instana-agent
+    description: Instana Agent
+    baseurl: "https://packages.instana.io/agent/rpm/generic/x86_64"
+    enabled: true
+    gpgcheck: false
+    repo_gpgcheck: false
+    username: _
+    password: "{{ instana_download_key }}"
+    sslverify: true
+  become: true
+
+- name: Remove dynamic agent if present
+  ansible.builtin.dnf:
+    name: instana-agent-dynamic
+    state: absent
+  become: true
+  failed_when: false
+
+- name: Install static Instana agent
+  ansible.builtin.dnf:
+    name: instana-agent-static
+    state: present
+    disable_gpg_check: true
+  become: true
+
+- name: Create systemd drop-in directory for instana-agent
+  ansible.builtin.file:
+    path: /etc/systemd/system/instana-agent.service.d
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Configure instana-agent systemd environment
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/instana-agent.service.d/custom-environment.conf
+    content: |
+      [Service]
+      Environment=INSTANA_HOST={{ instana_backend_host }}
+      Environment=INSTANA_PORT={{ instana_backend_port }}
+      Environment=INSTANA_KEY={{ instana_agent_key }}
+      Environment=INSTANA_ZONE={{ instana_zone }}
+      Environment=INSTANA_AGENT_HTTP_LISTEN={{ instana_agent_http_listen }}
+    mode: '0644'
+  become: true
+  notify: restart instana-agent
+
+- name: Configure instana-agent backend connection
+  ansible.builtin.copy:
+    dest: /opt/instana/agent/etc/instana/com.instana.agent.main.sender.Backend.cfg
+    content: |
+      host=${env:INSTANA_HOST}
+      port=${env:INSTANA_PORT}
+      key=${env:INSTANA_KEY}
+    mode: '0640'
+  become: true
+  notify: restart instana-agent
+
+- name: Configure instana-agent zone in main config
+  ansible.builtin.lineinfile:
+    path: /opt/instana/agent/etc/instana/com.instana.agent.main.config.Agent.cfg
+    regexp: '^zone='
+    line: "zone={{ instana_zone }}"
+    insertafter: EOF
+  become: true
+  notify: restart instana-agent
+
+- name: Configure instana-agent sensors and Ansible action sensor
+  ansible.builtin.copy:
+    dest: /opt/instana/agent/etc/instana/configuration.yaml
+    content: |
+      com.instana.plugin.host:
+        zone: "{{ instana_zone }}"
+
+      com.instana.plugin.apache:
+        tracer:
+          enabled: true
+
+      com.instana.plugin.action.ansible:
+        enabled: true
+        url: "{{ controller_url }}"
+        apiPath: /api/controller/v2
+        token: "{{ instana_aap_sensor_token }}"
+        maxConcurrentActions: 5
+        defaultTimeout: 300
+    mode: '0640'
+  become: true
+  notify: restart instana-agent
+
+- name: Enable and start instana-agent
+  ansible.builtin.systemd:
+    name: instana-agent
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true

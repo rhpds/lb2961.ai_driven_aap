@@ -1,0 +1,86 @@
+---
+- name: Get Gitea SCM URL from existing Instana Lab Playbooks project
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _instana_project_ref
+  delegate_to: localhost
+
+- name: Create EDA project for Instana rulebooks
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/eda/v1/projects/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      name: "ai-eda-instana-{{ guid }}"
+      url: "{{ _instana_project_ref.json.results[0].scm_url }}"
+      description: "Instana AIOps EDA rulebooks for {{ guid }}"
+    status_code: [200, 201]
+  register: _eda_project
+  delegate_to: localhost
+
+- name: Wait for EDA project sync to complete
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/eda/v1/projects/{{ _eda_project.json.id }}/"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _eda_project_status
+  delegate_to: localhost
+  retries: 20
+  delay: 10
+  until: _eda_project_status.json.import_state in ['completed', 'failed']
+
+- name: Get default EDA credential for AAP controller
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/eda/v1/eda-credentials/?name=AAP"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _eda_credential
+  delegate_to: localhost
+
+- name: Create Instana AIOps EDA rulebook activation
+  ansible.builtin.uri:
+    url: "{{ controller_url }}/api/eda/v1/activations/"
+    method: POST
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    body_format: json
+    body:
+      name: "Instana AIOps | {{ guid }}"
+      description: "Listens for Instana Smart Alert webhooks and triggers AAP remediation"
+      project: "{{ _eda_project.json.id }}"
+      rulebook: "rulebooks/instana.yml"
+      decision_environment: 1
+      eda_credentials: "{{ [_eda_credential.json.results[0].id] if _eda_credential.json.count > 0 else [] }}"
+      enabled: true
+      log_level: info
+      variables: |
+        controller_url: {{ controller_url }}
+        aap_org: Default
+        guid: {{ guid }}
+    status_code: [200, 201]
+  register: _eda_activation
+  delegate_to: localhost
+
+- name: Show EDA activation details
+  ansible.builtin.debug:
+    msg: "EDA activation '{{ _eda_activation.json.name }}' created (id={{ _eda_activation.json.id }})"

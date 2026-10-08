@@ -1,0 +1,84 @@
+---
+- name: Install Python pip and Flask dependencies
+  ansible.builtin.dnf:
+    name:
+      - python3-pip
+    state: present
+  become: true
+
+- name: Install Flask and Instana Python packages
+  ansible.builtin.pip:
+    name:
+      - flask
+      - instana
+    state: present
+  become: true
+
+- name: Create lab-webapp directory
+  ansible.builtin.file:
+    path: "{{ instana_webapp_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Deploy lab-webapp application
+  ansible.builtin.copy:
+    dest: "{{ instana_webapp_dir }}/app.py"
+    content: |
+      import instana
+      from flask import Flask, jsonify
+      import random
+
+      app = Flask(__name__)
+
+      @app.route('/')
+      def home():
+          return jsonify({"status": "ok", "service": "AIOps Web Service", "node": "node2"})
+
+      @app.route('/health')
+      def health():
+          return jsonify({"status": "healthy"})
+
+      @app.route('/api/data')
+      def data():
+          return jsonify({"value": random.randint(1, 100), "unit": "requests"})
+
+      if __name__ == '__main__':
+          app.run(host='0.0.0.0', port={{ instana_webapp_port }})
+    mode: '0644'
+    owner: root
+    group: root
+  become: true
+  notify: restart lab-webapp
+
+- name: Create lab-webapp systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/lab-webapp.service
+    content: |
+      [Unit]
+      Description=AIOps Lab Web Application
+      After=network.target instana-agent.service
+
+      [Service]
+      ExecStart=/usr/bin/python3 {{ instana_webapp_dir }}/app.py
+      WorkingDirectory={{ instana_webapp_dir }}
+      Restart=on-failure
+      Environment=INSTANA_AGENT_HOST=localhost
+      Environment=INSTANA_AGENT_PORT=42699
+      Environment=INSTANA_SERVICE_NAME={{ instana_webapp_service_name }}
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+  become: true
+  notify: restart lab-webapp
+
+- name: Enable and start lab-webapp
+  ansible.builtin.systemd:
+    name: lab-webapp
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
