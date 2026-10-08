@@ -3,7 +3,7 @@
   block:
     - name: Get Gitea credential ID
       ansible.builtin.uri:
-        url: "{{ controller_url }}/api/controller/v2/credentials/?name={{ instana_aap_gitea_credential_name | urlencode }}"
+        url: "{{ instana_controller_url }}/api/controller/v2/credentials/?name={{ instana_aap_gitea_credential_name | urlencode }}"
         method: GET
         user: "{{ aap_admin_user | default('admin') }}"
         password: "{{ aap_admin_password }}"
@@ -15,7 +15,7 @@
 
     - name: Get lab-credential ID
       ansible.builtin.uri:
-        url: "{{ controller_url }}/api/controller/v2/credentials/?name={{ instana_aap_lab_credential_name | urlencode }}"
+        url: "{{ instana_controller_url }}/api/controller/v2/credentials/?name={{ instana_aap_lab_credential_name | urlencode }}"
         method: GET
         user: "{{ aap_admin_user | default('admin') }}"
         password: "{{ aap_admin_password }}"
@@ -27,7 +27,7 @@
 
     - name: Get lab-inventory ID
       ansible.builtin.uri:
-        url: "{{ controller_url }}/api/controller/v2/inventories/?name={{ instana_aap_inventory_name | urlencode }}"
+        url: "{{ instana_controller_url }}/api/controller/v2/inventories/?name={{ instana_aap_inventory_name | urlencode }}"
         method: GET
         user: "{{ aap_admin_user | default('admin') }}"
         password: "{{ aap_admin_password }}"
@@ -46,7 +46,7 @@
 
 - name: Create Instana AIOps organization in AAP
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/organizations/"
+    url: "{{ instana_controller_url }}/api/controller/v2/organizations/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -66,7 +66,7 @@
 
 - name: Get Gitea SCM URL from existing Instana Lab Playbooks project
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
+    url: "{{ instana_controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -78,7 +78,7 @@
 
 - name: Create Instana AIOps Playbooks project in Instana org
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/projects/"
+    url: "{{ instana_controller_url }}/api/controller/v2/projects/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -103,7 +103,7 @@
 
 - name: Wait for Instana AIOps project sync to complete
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/"
+    url: "{{ instana_controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -118,7 +118,7 @@
 
 - name: Trigger project sync if not yet synced
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/update/"
+    url: "{{ instana_controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/update/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -130,7 +130,7 @@
 
 - name: Wait for re-triggered sync to complete
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/"
+    url: "{{ instana_controller_url }}/api/controller/v2/projects/{{ _instana_project_id }}/"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -146,7 +146,7 @@
 
 - name: Create Instana AIOps job templates
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/job_templates/"
+    url: "{{ instana_controller_url }}/api/controller/v2/job_templates/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -187,7 +187,7 @@
 
 - name: Attach lab-credential to each Instana job template
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/job_templates/{{ item.json.id }}/credentials/"
+    url: "{{ instana_controller_url }}/api/controller/v2/job_templates/{{ item.json.id }}/credentials/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -204,7 +204,7 @@
 
 - name: Create instana-sensor user in AAP
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/users/"
+    url: "{{ instana_controller_url }}/api/controller/v2/users/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -222,7 +222,7 @@
 
 - name: Add instana-sensor user to Instana AIOps org
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/organizations/{{ _instana_org_id }}/users/"
+    url: "{{ instana_controller_url }}/api/controller/v2/organizations/{{ _instana_org_id }}/users/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -236,7 +236,7 @@
 
 - name: Get Execute role ID for Instana AIOps org
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/organizations/{{ _instana_org_id }}/object_roles/"
+    url: "{{ instana_controller_url }}/api/controller/v2/organizations/{{ _instana_org_id }}/object_roles/"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -248,7 +248,7 @@
 
 - name: Assign Execute role to instana-sensor on Instana AIOps org
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/roles/{{ (_org_roles.json.results | selectattr('name', 'equalto', 'Execute') | list)[0].id }}/users/"
+    url: "{{ instana_controller_url }}/api/controller/v2/roles/{{ (_org_roles.json.results | selectattr('name', 'equalto', 'Execute') | list)[0].id }}/users/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -262,7 +262,7 @@
 
 - name: Create AAP token for instana-sensor user
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/tokens/"
+    url: "{{ instana_controller_url }}/api/controller/v2/tokens/"
     method: POST
     user: "{{ instana_aap_sensor_user }}"
     password: "{{ instana_aap_sensor_password }}"

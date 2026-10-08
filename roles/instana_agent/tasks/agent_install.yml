@@ -80,7 +80,7 @@
 
       com.instana.plugin.action.ansible:
         enabled: true
-        url: "{{ controller_url }}"
+        url: "{{ instana_controller_url }}"
         apiPath: /api/controller/v2
         token: "{{ instana_aap_sensor_token }}"
         maxConcurrentActions: 5

@@ -14,6 +14,7 @@ instana_aap_scm_branch: "main"
 
 aap_admin_user: "{{ ansible_automation_platform_configuration_username }}"
 aap_admin_password: "{{ ansible_automation_platform_configuration_password }}"
+instana_controller_url: "{{ controller_url | default(ansible_automation_platform_configuration_host) }}"
 
 instana_webapp_dir: "/opt/lab-webapp"
 instana_webapp_port: 8080

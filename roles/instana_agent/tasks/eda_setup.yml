@@ -1,7 +1,7 @@
 ---
 - name: Get Gitea SCM URL from existing Instana Lab Playbooks project
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
+    url: "{{ instana_controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -13,7 +13,7 @@
 
 - name: Create EDA project for Instana rulebooks
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/eda/v1/projects/"
+    url: "{{ instana_controller_url }}/api/eda/v1/projects/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -30,7 +30,7 @@
 
 - name: Wait for EDA project sync to complete
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/eda/v1/projects/{{ _eda_project.json.id }}/"
+    url: "{{ instana_controller_url }}/api/eda/v1/projects/{{ _eda_project.json.id }}/"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -45,7 +45,7 @@
 
 - name: Get default EDA credential for AAP controller
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/eda/v1/eda-credentials/?name=AAP"
+    url: "{{ instana_controller_url }}/api/eda/v1/eda-credentials/?name=AAP"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -57,7 +57,7 @@
 
 - name: Create Instana AIOps EDA rulebook activation
   ansible.builtin.uri:
-    url: "{{ controller_url }}/api/eda/v1/activations/"
+    url: "{{ instana_controller_url }}/api/eda/v1/activations/"
     method: POST
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
@@ -74,7 +74,7 @@
       enabled: true
       log_level: info
       variables: |
-        controller_url: {{ controller_url }}
+        controller_url: {{ instana_controller_url }}
         aap_org: Default
         guid: {{ guid }}
     status_code: [200, 201]
