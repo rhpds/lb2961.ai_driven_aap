@@ -191,7 +191,7 @@
     body_format: json
     body:
       id: "{{ _lab_cred_id }}"
-    status_code: [204]
+    status_code: [200, 204]
   become: false
   delegate_to: localhost
   loop: "{{ _instana_templates.results }}"
