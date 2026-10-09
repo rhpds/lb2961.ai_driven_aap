@@ -69,9 +69,26 @@
   ansible.builtin.set_fact:
     _de_id: "{{ (_decision_envs.json.results | first).id | int }}"
 
-- name: Get AAP EDA credential ID
+- name: Get all EDA credential types to find RH AAP type ID
   ansible.builtin.uri:
-    url: "{{ instana_controller_url }}/api/eda/v1/eda-credentials/?name=AAP"
+    url: "{{ instana_controller_url }}/api/eda/v1/credential-types/"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _eda_cred_types
+  become: false
+  delegate_to: localhost
+
+- name: Set RH AAP credential type ID
+  ansible.builtin.set_fact:
+    _rhaap_cred_type_id: "{{ (_eda_cred_types.json.results | selectattr('name', 'search', 'Ansible Automation Platform') | list | first).id | int }}"
+
+- name: Get AAP EDA credential by type
+  ansible.builtin.uri:
+    url: "{{ instana_controller_url }}/api/eda/v1/eda-credentials/?credential_type_id={{ _rhaap_cred_type_id }}"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
