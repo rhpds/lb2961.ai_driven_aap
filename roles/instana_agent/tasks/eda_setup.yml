@@ -13,6 +13,7 @@
       url: "{{ instana_gitea_scm_url }}"
       description: "Instana AIOps EDA rulebooks for {{ guid }}"
       organization_id: 1
+      scm_branch: "{{ instana_aap_scm_branch }}"
     status_code: [200, 201]
   register: _eda_project
   become: false
