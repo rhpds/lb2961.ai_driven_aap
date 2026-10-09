@@ -11,7 +11,8 @@
         validate_certs: false
         status_code: 200
       register: _gitea_cred
-      delegate_to: localhost
+      become: false
+  delegate_to: localhost
 
     - name: Get lab-credential ID
       ansible.builtin.uri:
@@ -23,7 +24,8 @@
         validate_certs: false
         status_code: 200
       register: _lab_cred
-      delegate_to: localhost
+      become: false
+  delegate_to: localhost
 
     - name: Get lab-inventory ID
       ansible.builtin.uri:
@@ -35,7 +37,8 @@
         validate_certs: false
         status_code: 200
       register: _inventory
-      delegate_to: localhost
+      become: false
+  delegate_to: localhost
 
     - name: Set resource ID facts
       ansible.builtin.set_fact:
@@ -58,6 +61,7 @@
       description: "Instana Action Catalog templates - student separation by guid"
     status_code: [200, 201]
   register: _instana_org
+  become: false
   delegate_to: localhost
 
 - name: Set Instana AIOps org ID
@@ -74,6 +78,7 @@
     validate_certs: false
     status_code: 200
   register: _existing_project
+  become: false
   delegate_to: localhost
 
 - name: Create Instana AIOps Playbooks project in Instana org
@@ -95,6 +100,7 @@
       credential: "{{ _gitea_cred_id }}"
     status_code: [200, 201]
   register: _instana_project
+  become: false
   delegate_to: localhost
 
 - name: Set Instana project ID
@@ -111,6 +117,7 @@
     validate_certs: false
     status_code: 200
   register: _project_status
+  become: false
   delegate_to: localhost
   retries: 20
   delay: 10
@@ -125,6 +132,7 @@
     force_basic_auth: true
     validate_certs: false
     status_code: [202]
+  become: false
   delegate_to: localhost
   when: _project_status.json.status == 'failed'
 
@@ -138,6 +146,7 @@
     validate_certs: false
     status_code: 200
   register: _project_status
+  become: false
   delegate_to: localhost
   retries: 20
   delay: 10
@@ -164,6 +173,7 @@
       ask_limit_on_launch: true
     status_code: [200, 201]
   register: _instana_templates
+  become: false
   delegate_to: localhost
   loop:
     - name: "INSTANA | {{ guid }} | Restore Web App Service - Fix call rate drop and service outage"
@@ -197,6 +207,7 @@
     body:
       id: "{{ _lab_cred_id }}"
     status_code: [204]
+  become: false
   delegate_to: localhost
   loop: "{{ _instana_templates.results }}"
   loop_control:
@@ -218,6 +229,7 @@
       is_superuser: false
     status_code: [200, 201]
   register: _sensor_user
+  become: false
   delegate_to: localhost
 
 - name: Add instana-sensor user to Instana AIOps org
@@ -232,6 +244,7 @@
     body:
       id: "{{ _sensor_user.json.id }}"
     status_code: [204]
+  become: false
   delegate_to: localhost
 
 - name: Get Execute role ID for Instana AIOps org
@@ -244,6 +257,7 @@
     validate_certs: false
     status_code: 200
   register: _org_roles
+  become: false
   delegate_to: localhost
 
 - name: Assign Execute role to instana-sensor on Instana AIOps org
@@ -258,6 +272,7 @@
     body:
       id: "{{ _sensor_user.json.id }}"
     status_code: [204]
+  become: false
   delegate_to: localhost
 
 - name: Create AAP token for instana-sensor user
@@ -274,6 +289,7 @@
       scope: read
     status_code: [200, 201]
   register: _sensor_token
+  become: false
   delegate_to: localhost
 
 - name: Store sensor token for use in agent configuration

@@ -9,6 +9,7 @@
     validate_certs: false
     status_code: 200
   register: _instana_project_ref
+  become: false
   delegate_to: localhost
 
 - name: Create EDA project for Instana rulebooks
@@ -26,6 +27,7 @@
       description: "Instana AIOps EDA rulebooks for {{ guid }}"
     status_code: [200, 201]
   register: _eda_project
+  become: false
   delegate_to: localhost
 
 - name: Wait for EDA project sync to complete
@@ -38,6 +40,7 @@
     validate_certs: false
     status_code: 200
   register: _eda_project_status
+  become: false
   delegate_to: localhost
   retries: 20
   delay: 10
@@ -53,6 +56,7 @@
     validate_certs: false
     status_code: 200
   register: _eda_credential
+  become: false
   delegate_to: localhost
 
 - name: Create Instana AIOps EDA rulebook activation
@@ -79,6 +83,7 @@
         guid: {{ guid }}
     status_code: [200, 201]
   register: _eda_activation
+  become: false
   delegate_to: localhost
 
 - name: Show EDA activation details
