@@ -161,23 +161,23 @@
   become: false
   delegate_to: localhost
   loop:
-    - name: "INSTANA | {{ guid }} | Restore Web App Service - Fix call rate drop and service outage"
-      description: "Restores the lab web application service when it is down or unreachable. Use when call rate drops to zero or web app is not responding."
+    - name: "INSTANA | {{ guid }} | Restore Web App Service - Fix anomalously low calls"
+      description: "Restores the lab web application service when number of calls is anomalously low or zero. Use when the service is down, unreachable, or call rate has dropped significantly."
       playbook: playbooks/lab_webapp_restore.yml
-    - name: "INSTANA | {{ guid }} | Break Web App Service - Simulate service outage"
-      description: "Stops the lab web application service to simulate an outage. Use for testing incident detection and automated remediation workflows."
+    - name: "INSTANA | {{ guid }} | Break Web App Service - Simulate low calls outage"
+      description: "Stops the lab web application service to simulate an outage causing anomalously low call count. Use for testing incident detection and automated remediation."
       playbook: playbooks/lab_webapp_break.yml
-    - name: "INSTANA | {{ guid }} | Check Web App Service Health - Verify service status during incident"
-      description: "Checks the health and status of the lab web application systemd service. Use to verify service state during incident investigation."
+    - name: "INSTANA | {{ guid }} | Check Web App Service Health - Diagnose low calls incident"
+      description: "Checks the health and status of the lab web application systemd service. Use to diagnose why calls are anomalously low or the service is unreachable."
       playbook: playbooks/systemd_check_status.yml
-    - name: "INSTANA | {{ guid }} | Collect Web App Diagnostics - Gather facts for incident triage"
-      description: "Collects diagnostic information and system facts from the host running the lab web application. Use to gather data during incident triage."
+    - name: "INSTANA | {{ guid }} | Collect Web App Diagnostics - Investigate low call rate"
+      description: "Collects diagnostic information from the host when number of calls is anomalously low. Use to gather facts during incident triage and investigation."
       playbook: playbooks/debug_facts.yml
-    - name: "INSTANA | {{ guid }} | AI Route Web App Incident - Analyze and remediate service call rate issue"
-      description: "Analyzes the web application incident using AI and routes to the appropriate remediation action. Entry point for AI-driven automated remediation workflows."
+    - name: "INSTANA | {{ guid }} | AI Route Web App Incident - Analyze anomalously low calls"
+      description: "Analyzes the web application incident when calls are anomalously low and routes to the appropriate remediation action. Entry point for AI-driven remediation."
       playbook: playbooks/ai_route_cron_remediation.yml
-    - name: "INSTANA | {{ guid }} | Notify Mattermost - Web App Service Incident Alert"
-      description: "Sends an alert notification to Mattermost when a web application incident is detected on the monitored host."
+    - name: "INSTANA | {{ guid }} | Notify Mattermost - Web App Low Calls Alert"
+      description: "Sends an alert notification to Mattermost when the web application number of calls is anomalously low or service is unreachable."
       playbook: playbooks/mattermost_rhel_alert.yml
 
 - name: Attach lab-credential to each Instana job template
