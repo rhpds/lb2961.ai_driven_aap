@@ -83,7 +83,6 @@
       scm_url: "{{ instana_gitea_scm_url }}"
       scm_branch: "{{ instana_aap_scm_branch }}"
       scm_update_on_launch: false
-      credential: "{{ _gitea_cred_id }}"
     status_code: [200, 201]
   register: _instana_project
   become: false

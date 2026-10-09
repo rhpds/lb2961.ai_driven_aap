@@ -11,7 +11,7 @@ instana_aap_gitea_credential_name: "Gitea"
 instana_aap_lab_credential_name: "lab-credential"
 instana_aap_inventory_name: "lab-inventory"
 instana_aap_scm_branch: "main"
-instana_gitea_scm_url: "{{ gitea_create_url }}/lab-user/aiops-summitlab.git"
+instana_gitea_scm_url: "https://github.com/ansible-tmm/aiops-summitlab.git"
 
 aap_admin_user: "{{ ansible_automation_platform_configuration_username }}"
 aap_admin_password: "{{ ansible_automation_platform_configuration_password }}"
