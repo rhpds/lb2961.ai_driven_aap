@@ -189,8 +189,7 @@
     force_basic_auth: true
     validate_certs: false
     body_format: json
-    body:
-      id: "{{ _lab_cred_id | int }}"
+    body: "{{ {'id': _lab_cred_id | int} }}"
     status_code: [200, 204]
   become: false
   delegate_to: localhost
@@ -226,8 +225,7 @@
     force_basic_auth: true
     validate_certs: false
     body_format: json
-    body:
-      id: "{{ _sensor_user.json.id | int }}"
+    body: "{{ {'id': _sensor_user.json.id | int} }}"
     status_code: [204]
   become: false
   delegate_to: localhost
@@ -254,8 +252,7 @@
     force_basic_auth: true
     validate_certs: false
     body_format: json
-    body:
-      id: "{{ _sensor_user.json.id | int }}"
+    body: "{{ {'id': _sensor_user.json.id | int} }}"
     status_code: [204]
   become: false
   delegate_to: localhost
