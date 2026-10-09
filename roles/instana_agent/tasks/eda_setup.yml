@@ -34,7 +34,33 @@
   delay: 10
   until: _eda_project_status.json.import_state in ['completed', 'failed']
 
-- name: Get default EDA credential for AAP controller
+- name: Get instana rulebook ID from EDA project
+  ansible.builtin.uri:
+    url: "{{ instana_controller_url }}/api/eda/v1/rulebooks/?project_id={{ _eda_project.json.id }}&name=rulebooks%2Finstana.yml"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _rulebook
+  become: false
+  delegate_to: localhost
+
+- name: Get default decision environment ID
+  ansible.builtin.uri:
+    url: "{{ instana_controller_url }}/api/eda/v1/decision-environments/"
+    method: GET
+    user: "{{ aap_admin_user | default('admin') }}"
+    password: "{{ aap_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+  register: _decision_envs
+  become: false
+  delegate_to: localhost
+
+- name: Get AAP EDA credential ID
   ansible.builtin.uri:
     url: "{{ instana_controller_url }}/api/eda/v1/eda-credentials/?name=AAP"
     method: GET
@@ -59,11 +85,11 @@
     body:
       name: "Instana AIOps | {{ guid }}"
       description: "Listens for Instana Smart Alert webhooks and triggers AAP remediation"
-      project: "{{ _eda_project.json.id }}"
-      rulebook: "rulebooks/instana.yml"
-      decision_environment: 1
-      eda_credentials: "{{ [_eda_credential.json.results[0].id] if _eda_credential.json.count > 0 else [] }}"
-      enabled: true
+      project_id: "{{ _eda_project.json.id | int }}"
+      rulebook_id: "{{ _rulebook.json.results[0].id | int }}"
+      decision_environment_id: "{{ _decision_envs.json.results[0].id | int }}"
+      organization_id: 1
+      eda_credential_ids: "{{ [_eda_credential.json.results[0].id | int] if _eda_credential.json.count > 0 else [] }}"
       log_level: info
       variables: |
         controller_url: {{ instana_controller_url }}
