@@ -34,20 +34,24 @@
   delay: 10
   until: _eda_project_status.json.import_state in ['completed', 'failed']
 
-- name: Get instana rulebook ID from EDA project
+- name: Get all rulebooks for Instana EDA project
   ansible.builtin.uri:
-    url: "{{ instana_controller_url }}/api/eda/v1/rulebooks/?project_id={{ _eda_project.json.id }}&name=rulebooks%2Finstana.yml"
+    url: "{{ instana_controller_url }}/api/eda/v1/rulebooks/?project_id={{ _eda_project.json.id }}"
     method: GET
     user: "{{ aap_admin_user | default('admin') }}"
     password: "{{ aap_admin_password }}"
     force_basic_auth: true
     validate_certs: false
     status_code: 200
-  register: _rulebook
+  register: _rulebooks
   become: false
   delegate_to: localhost
 
-- name: Get default decision environment ID
+- name: Set instana rulebook ID fact
+  ansible.builtin.set_fact:
+    _instana_rulebook_id: "{{ (_rulebooks.json.results | selectattr('name', 'search', 'instana') | list | first).id | int }}"
+
+- name: Get all decision environments
   ansible.builtin.uri:
     url: "{{ instana_controller_url }}/api/eda/v1/decision-environments/"
     method: GET
@@ -59,6 +63,10 @@
   register: _decision_envs
   become: false
   delegate_to: localhost
+
+- name: Set decision environment ID fact
+  ansible.builtin.set_fact:
+    _de_id: "{{ (_decision_envs.json.results | first).id | int }}"
 
 - name: Get AAP EDA credential ID
   ansible.builtin.uri:
@@ -86,8 +94,8 @@
       name: "Instana AIOps | {{ guid }}"
       description: "Listens for Instana Smart Alert webhooks and triggers AAP remediation"
       project_id: "{{ _eda_project.json.id | int }}"
-      rulebook_id: "{{ _rulebook.json.results[0].id | int }}"
-      decision_environment_id: "{{ _decision_envs.json.results[0].id | int }}"
+      rulebook_id: "{{ _instana_rulebook_id }}"
+      decision_environment_id: "{{ _de_id }}"
       organization_id: 1
       eda_credential_ids: "{{ [_eda_credential.json.results[0].id | int] if _eda_credential.json.count > 0 else [] }}"
       log_level: info
