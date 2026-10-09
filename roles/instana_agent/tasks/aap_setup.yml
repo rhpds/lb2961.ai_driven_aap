@@ -268,7 +268,7 @@
     body_format: json
     body:
       description: "Instana sensor token"
-      scope: read
+      scope: write
     status_code: [200, 201]
   register: _sensor_token
   become: false
