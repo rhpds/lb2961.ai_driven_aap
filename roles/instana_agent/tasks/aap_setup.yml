@@ -68,19 +68,6 @@
   ansible.builtin.set_fact:
     _instana_org_id: "{{ _instana_org.json.id }}"
 
-- name: Get Gitea SCM URL from existing Instana Lab Playbooks project
-  ansible.builtin.uri:
-    url: "{{ instana_controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
-    method: GET
-    user: "{{ aap_admin_user | default('admin') }}"
-    password: "{{ aap_admin_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    status_code: 200
-  register: _existing_project
-  become: false
-  delegate_to: localhost
-
 - name: Create Instana AIOps Playbooks project in Instana org
   ansible.builtin.uri:
     url: "{{ instana_controller_url }}/api/controller/v2/projects/"
@@ -94,7 +81,7 @@
       name: "{{ instana_aap_project_name }}"
       organization: "{{ _instana_org_id }}"
       scm_type: git
-      scm_url: "{{ _existing_project.json.results[0].scm_url }}"
+      scm_url: "{{ instana_gitea_scm_url }}"
       scm_branch: "{{ instana_aap_scm_branch }}"
       scm_update_on_launch: false
       credential: "{{ _gitea_cred_id }}"

@@ -1,17 +1,4 @@
 ---
-- name: Get Gitea SCM URL from existing Instana Lab Playbooks project
-  ansible.builtin.uri:
-    url: "{{ instana_controller_url }}/api/controller/v2/projects/?name=Instana+Lab+Playbooks"
-    method: GET
-    user: "{{ aap_admin_user | default('admin') }}"
-    password: "{{ aap_admin_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    status_code: 200
-  register: _instana_project_ref
-  become: false
-  delegate_to: localhost
-
 - name: Create EDA project for Instana rulebooks
   ansible.builtin.uri:
     url: "{{ instana_controller_url }}/api/eda/v1/projects/"
@@ -23,7 +10,7 @@
     body_format: json
     body:
       name: "ai-eda-instana-{{ guid }}"
-      url: "{{ _instana_project_ref.json.results[0].scm_url }}"
+      url: "{{ instana_gitea_scm_url }}"
       description: "Instana AIOps EDA rulebooks for {{ guid }}"
     status_code: [200, 201]
   register: _eda_project
