@@ -1,0 +1,12 @@
+---
+- name: Wait for AAP controller API to become available
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/ping/"
+    method: GET
+    validate_certs: false
+    status_code: 200
+  register: _controller_ping
+  retries: 30
+  delay: 20
+  until: _controller_ping.status == 200
+  failed_when: false
