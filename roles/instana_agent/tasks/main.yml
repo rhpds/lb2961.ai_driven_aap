@@ -17,6 +17,5 @@
   ansible.builtin.include_tasks: traffic_generator.yml
   run_once: true
 
-- name: Set up EDA project and Instana AIOps activation
-  ansible.builtin.include_tasks: eda_setup.yml
-  run_once: true
+# EDA activation is managed by infra.aap_configuration.dispatch
+# via eda_rulebook_activations in agnosticv dev.yaml/common.yaml
