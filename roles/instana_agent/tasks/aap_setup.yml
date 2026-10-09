@@ -12,7 +12,7 @@
         status_code: 200
       register: _gitea_cred
       become: false
-  delegate_to: localhost
+      delegate_to: localhost
 
     - name: Get lab-credential ID
       ansible.builtin.uri:
@@ -25,7 +25,7 @@
         status_code: 200
       register: _lab_cred
       become: false
-  delegate_to: localhost
+      delegate_to: localhost
 
     - name: Get lab-inventory ID
       ansible.builtin.uri:
@@ -38,14 +38,13 @@
         status_code: 200
       register: _inventory
       become: false
-  delegate_to: localhost
+      delegate_to: localhost
 
     - name: Set resource ID facts
       ansible.builtin.set_fact:
         _gitea_cred_id: "{{ _gitea_cred.json.results[0].id }}"
         _lab_cred_id: "{{ _lab_cred.json.results[0].id }}"
         _inventory_id: "{{ _inventory.json.results[0].id }}"
-        _gitea_url: "{{ _gitea_cred.json.results[0].inputs.password | default('') }}"
 
 - name: Create Instana AIOps organization in AAP
   ansible.builtin.uri:
