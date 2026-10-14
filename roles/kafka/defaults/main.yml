@@ -6,3 +6,7 @@ kafka_controller_port: 9093
 kafka_path: "/opt/kafka/bin/"
 kafka_topic: "httpd-error-logs"
 kafka_additional_topics: []
+kafka_volume_name: kafka_data
+kafka_log_dir: /opt/kafka/logs
+kafka_log_retention_hours: "48"
+kafka_log_retention_bytes: "5368709120"

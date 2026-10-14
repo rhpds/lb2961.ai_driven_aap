@@ -13,7 +13,7 @@
 
 - name: Create Kafka data volume
   containers.podman.podman_volume:
-    name: kafka_data
+    name: "{{ kafka_volume_name }}"
 
 - name: Start Apache Kafka container
   containers.podman.podman_container:
@@ -39,6 +39,11 @@
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
       KAFKA_NUM_PARTITIONS: "3"
+      KAFKA_LOG_DIRS: "{{ kafka_log_dir }}"
+      KAFKA_LOG_RETENTION_HOURS: "{{ kafka_log_retention_hours }}"
+      KAFKA_LOG_RETENTION_BYTES: "{{ kafka_log_retention_bytes }}"
+    volume:
+      - "{{ kafka_volume_name }}:{{ kafka_log_dir }}:Z"
 
 ## Some tests below to list out topics, and create a test-topic if nothing exists
 - name: List Kafka topics
