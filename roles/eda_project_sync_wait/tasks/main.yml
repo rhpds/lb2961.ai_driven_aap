@@ -96,6 +96,11 @@
       name: "{{ item.name }}"
       description: "{{ item.description | default('') }}"
       url: "{{ item.url }}"
+      # Carry the original branch through the delete+recreate path. Without
+      # this, the recreated project syncs the repo default branch (main),
+      # which lacks instana.yml -> "Rulebook instana.yml not found for
+      # project ai-eda" when the Instana rulebook activation is created.
+      scm_branch: "{{ item.scm_branch | default(omit) }}"
       scm_type: git
       organization_id: "{{ item.organization_id }}"
       verify_ssl: "{{ item.tls_validation | default(true) }}"
