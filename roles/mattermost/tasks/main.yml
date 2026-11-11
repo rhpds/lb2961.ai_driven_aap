@@ -217,15 +217,24 @@
         name: mattermost
         command: "mmctl --local import job list"
       register: _import_status
-      retries: 12
+      retries: 24
       delay: 5
-      until: "'pending' not in _import_status.stdout"
+      until: "'Status: success' in _import_status.stdout"
+      failed_when: "'Status: error' in _import_status.stdout"
       changed_when: false
 
     - name: Create ansibleadmin user
       containers.podman.podman_container_exec:
         name: mattermost
         command: "mmctl --local user create --email ansibleadmin@ansible.com --username ansibleadmin --password {{ mattermost_admin_password }} --system-admin"
+      register: _ansibleadmin_create
+      failed_when: false
+      changed_when: _ansibleadmin_create.rc == 0
+
+    - name: Set ansibleadmin password to lab credential
+      containers.podman.podman_container_exec:
+        name: mattermost
+        command: "mmctl --local user change-password ansibleadmin --password {{ mattermost_admin_password }}"
 
     - name: Add admin to team
       containers.podman.podman_container_exec:
