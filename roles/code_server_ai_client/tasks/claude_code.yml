@@ -29,7 +29,7 @@
   become_user: "{{ student_name }}"
   ansible.builtin.shell:
     cmd: >-
-      code-server --install-extension Anthropic.claude-code
+      code-server --install-extension Anthropic.claude-code@{{ claude_code_version }}
     executable: /bin/bash
   register: _claude_ext_fallback
   changed_when: "'was successfully installed' in _claude_ext_fallback.stdout"
@@ -81,6 +81,8 @@
     block: |
       export ANTHROPIC_BASE_URL="{{ _claude_base_url | trim }}"
       export ANTHROPIC_API_KEY="{{ _claude_api_key | trim }}"
+      export ANTHROPIC_MODEL="{{ claude_code_model }}"
+      export DISABLE_UPDATES=1
     owner: "{{ student_name }}"
 
 
