@@ -1,7 +1,9 @@
 {
   "env": {
     "ANTHROPIC_BASE_URL": "{{ _claude_base_url | trim }}",
-    "ANTHROPIC_API_KEY": "{{ _claude_api_key | trim }}"
+    "ANTHROPIC_API_KEY": "{{ _claude_api_key | trim }}",
+    "ANTHROPIC_MODEL": "{{ claude_code_model }}",
+    "DISABLE_UPDATES": "1"
   },
   "permissions": {
     "allow": [

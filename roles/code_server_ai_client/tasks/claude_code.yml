@@ -29,7 +29,7 @@
   become_user: "{{ student_name }}"
   ansible.builtin.shell:
     cmd: >-
-      code-server --install-extension Anthropic.claude-code
+      code-server --install-extension Anthropic.claude-code@{{ claude_code_version }}
     executable: /bin/bash
   register: _claude_ext_fallback
   changed_when: "'was successfully installed' in _claude_ext_fallback.stdout"
@@ -81,8 +81,42 @@
     block: |
       export ANTHROPIC_BASE_URL="{{ _claude_base_url | trim }}"
       export ANTHROPIC_API_KEY="{{ _claude_api_key | trim }}"
+      export ANTHROPIC_MODEL="{{ claude_code_model }}"
+      export DISABLE_UPDATES=1
     owner: "{{ student_name }}"
 
+# DISABLE_UPDATES locks Claude Code's own updater; code-server can still
+# bump Anthropic.claude-code via the editor extension updater. Pin that too.
+- name: Ensure code-server User settings directory exists
+  ansible.builtin.file:
+    path: "/home/{{ student_name }}/.local/share/code-server/User"
+    state: directory
+    owner: "{{ student_name }}"
+    mode: "0755"
+
+- name: Read code-server User settings
+  ansible.builtin.slurp:
+    src: "/home/{{ student_name }}/.local/share/code-server/User/settings.json"
+  register: _cs_settings_slurp
+  failed_when: false
+
+- name: Disable code-server extension auto-updates
+  vars:
+    _cs_settings_path: "/home/{{ student_name }}/.local/share/code-server/User/settings.json"
+    _cs_settings_current: >-
+      {{ (_cs_settings_slurp.content | b64decode | from_json)
+         if (_cs_settings_slurp.content is defined)
+         else {} }}
+    _cs_settings_desired: >-
+      {{ _cs_settings_current | combine({
+           'extensions.autoUpdate': false,
+           'extensions.autoCheckUpdates': false
+         }) }}
+  ansible.builtin.copy:
+    dest: "{{ _cs_settings_path }}"
+    content: "{{ _cs_settings_desired | to_nice_json }}\n"
+    owner: "{{ student_name }}"
+    mode: "0644"
 
 # Note: claudeCode.disableLoginPrompt is set via vscode_server_additional_settings
 # in the catalog YAML, which the vscode-server workload writes to settings.json.
