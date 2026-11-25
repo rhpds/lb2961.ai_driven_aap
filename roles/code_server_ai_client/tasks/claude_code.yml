@@ -89,8 +89,9 @@
 # bump Anthropic.claude-code via the editor extension updater. Pin that too.
 #
 # vscode-server's settings.json.j2 emits an extra trailing "}" when
-# vscode_server_additional_settings is set, so strict from_json fails with
-# "Extra data". Use raw_decode to take the first JSON object, then rewrite.
+# vscode_server_additional_settings is set. Strict json.loads fails with
+# "Extra data". On that specific error we raw_decode the first object and
+# rewrite clean JSON (dropping only the trailing junk after it).
 - name: Ensure code-server User settings directory exists
   ansible.builtin.file:
     path: "/home/{{ student_name }}/.local/share/code-server/User"
@@ -110,11 +111,22 @@
 
         path = Path("/home/{{ student_name }}/.local/share/code-server/User/settings.json")
         before = path.read_text(encoding="utf-8") if path.exists() else ""
-        try:
-            data = json.loads(before) if before.strip() else {}
-        except json.JSONDecodeError:
-            # Tolerates trailing junk (extra "}" from vscode-server template)
-            data, _ = json.JSONDecoder().raw_decode(before.lstrip())
+        if not before.strip():
+            data = {}
+        else:
+            try:
+                data = json.loads(before)
+            except json.JSONDecodeError as exc:
+                # Only the known vscode-server trailing-junk case
+                if "Extra data" not in exc.msg:
+                    raise
+                data, end = json.JSONDecoder().raw_decode(before.lstrip())
+                # Refuse anything that is not leftover braces/whitespace
+                leftover = before.lstrip()[end:]
+                if leftover and not all(c in " \t\r\n}" for c in leftover):
+                    raise RuntimeError(
+                        f"Unexpected trailing content in settings.json: {leftover!r}"
+                    )
         if not isinstance(data, dict):
             data = {}
         data["extensions.autoUpdate"] = False
