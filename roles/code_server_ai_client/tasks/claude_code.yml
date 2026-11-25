@@ -87,6 +87,11 @@
 
 # DISABLE_UPDATES locks Claude Code's own updater; code-server can still
 # bump Anthropic.claude-code via the editor extension updater. Pin that too.
+#
+# vscode-server's settings.json.j2 emits an extra trailing "}" when
+# vscode_server_additional_settings is set. Strict json.loads fails with
+# "Extra data". On that specific error we raw_decode the first object and
+# rewrite clean JSON (dropping only the trailing junk after it).
 - name: Ensure code-server User settings directory exists
   ansible.builtin.file:
     path: "/home/{{ student_name }}/.local/share/code-server/User"
@@ -94,29 +99,46 @@
     owner: "{{ student_name }}"
     mode: "0755"
 
-- name: Read code-server User settings
-  ansible.builtin.slurp:
-    src: "/home/{{ student_name }}/.local/share/code-server/User/settings.json"
-  register: _cs_settings_slurp
-  failed_when: false
-
 - name: Disable code-server extension auto-updates
-  vars:
-    _cs_settings_path: "/home/{{ student_name }}/.local/share/code-server/User/settings.json"
-    _cs_settings_current: >-
-      {{ (_cs_settings_slurp.content | b64decode | from_json)
-         if (_cs_settings_slurp.content is defined)
-         else {} }}
-    _cs_settings_desired: >-
-      {{ _cs_settings_current | combine({
-           'extensions.autoUpdate': false,
-           'extensions.autoCheckUpdates': false
-         }) }}
-  ansible.builtin.copy:
-    dest: "{{ _cs_settings_path }}"
-    content: "{{ _cs_settings_desired | to_nice_json }}\n"
-    owner: "{{ student_name }}"
-    mode: "0644"
+  become_user: "{{ student_name }}"
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import json
+        from pathlib import Path
+
+        path = Path("/home/{{ student_name }}/.local/share/code-server/User/settings.json")
+        before = path.read_text(encoding="utf-8") if path.exists() else ""
+        if not before.strip():
+            data = {}
+        else:
+            try:
+                data = json.loads(before)
+            except json.JSONDecodeError as exc:
+                # Only the known vscode-server trailing-junk case
+                if "Extra data" not in exc.msg:
+                    raise
+                data, end = json.JSONDecoder().raw_decode(before.lstrip())
+                # Refuse anything that is not leftover braces/whitespace
+                leftover = before.lstrip()[end:]
+                if leftover and not all(c in " \t\r\n}" for c in leftover):
+                    raise RuntimeError(
+                        f"Unexpected trailing content in settings.json: {leftover!r}"
+                    )
+        if not isinstance(data, dict):
+            data = {}
+        data["extensions.autoUpdate"] = False
+        data["extensions.autoCheckUpdates"] = False
+        after = json.dumps(data, indent=2) + "\n"
+        if after != before:
+            path.write_text(after, encoding="utf-8")
+            print("changed")
+        else:
+            print("ok")
+  register: _cs_settings_update
+  changed_when: "'changed' in _cs_settings_update.stdout"
 
 # Note: claudeCode.disableLoginPrompt is set via vscode_server_additional_settings
 # in the catalog YAML, which the vscode-server workload writes to settings.json.
