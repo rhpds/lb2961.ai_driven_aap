@@ -92,6 +92,73 @@
       }}
   when: controller_project_final_status is not skipped
 
+- name: Delete stuck controller projects
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/{{ item.id }}/"
+    method: DELETE
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: [200, 202, 204]
+  when: controller_stuck_projects | length > 0
+  loop: "{{ controller_stuck_projects }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Pause before recreating controller projects
+  ansible.builtin.pause:
+    seconds: 5
+  when: controller_stuck_projects | length > 0
+
+- name: Recreate stuck controller projects
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/"
+    method: POST
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+      description: "{{ item.description | default('') }}"
+      scm_type: "{{ item.scm_type | default('git') }}"
+      scm_url: "{{ item.scm_url }}"
+      scm_branch: "{{ item.scm_branch | default(omit) }}"
+      scm_clean: "{{ item.scm_clean | default(omit) }}"
+      scm_delete_on_update: "{{ item.scm_delete_on_update | default(omit) }}"
+      scm_update_on_launch: "{{ item.scm_update_on_launch | default(omit) }}"
+      organization: "{{ item.organization.name | default(item.organization) }}"
+    status_code: [200, 201]
+    return_content: true
+  when: controller_stuck_projects | length > 0
+  loop: "{{ controller_stuck_projects }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Wait for recreated controller projects to sync
+  ansible.builtin.uri:
+    url: "{{ aap_hostname }}/api/controller/v2/projects/?name={{ item.name | urlencode }}"
+    method: GET
+    url_username: "{{ aap_username }}"
+    url_password: "{{ aap_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ aap_validate_certs | default(false) }}"
+    status_code: 200
+    return_content: true
+  register: controller_project_recreated_status
+  until: >
+    controller_project_recreated_status.json.results | length > 0 and
+    controller_project_recreated_status.json.results[0].status == 'successful'
+  retries: "{{ controller_project_sync_wait_retries }}"
+  delay: "{{ controller_project_sync_wait_delay }}"
+  failed_when: false
+  when: controller_stuck_projects | length > 0
+  loop: "{{ controller_stuck_projects }}"
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: Warn about projects that failed to sync
   ansible.builtin.debug:
     msg: "WARNING: Project '{{ item.name }}' failed to sync (status: {{ item.status }}). Job templates using this project may fail playbook validation."
