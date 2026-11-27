@@ -1,6 +1,10 @@
 ---
-# Initial wait before falling back to delete+recreate
-eda_project_sync_wait_initial_retries: 6
+# Initial wait before falling back to delete+recreate.
+# The aiops-summitlab clone regularly takes 60-90s (provisioning log 2026-10-16:
+# sync completed on the 7th of 7 attempts). 6 x 10s only just fit and forced the
+# delete+recreate path on any slower network; 30 x 10s gives the sync room to
+# finish and makes recreate a true last resort.
+eda_project_sync_wait_initial_retries: 30
 # Final wait after recreate
 eda_project_sync_wait_retries: 30
 eda_project_sync_wait_delay: 10
